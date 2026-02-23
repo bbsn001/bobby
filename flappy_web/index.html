@@ -247,7 +247,6 @@ async function loadPlayerData(nick) {
           skins = ['bobby'];
         }
       }
-      console.log('[loadPlayerData]', nick, '→ coins:', d.coins, 'skins:', skins, 'active:', d.activeSkin);
       return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby' };
     }
   } catch(e) { console.warn('loadPlayerData:', e); }
@@ -319,7 +318,7 @@ const mumiaAudio    = new Audio('assets/sounds/mumia.mp3');   mumiaAudio.volume 
 const dzwiek7Audio  = new Audio('assets/sounds/7.mp3');       dzwiek7Audio.volume  = 1.0;
 const krystianAudio = new Audio('assets/sounds/krystian.mp3');krystianAudio.volume = 1.0;
 
-function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(() => {}); }
+function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(e => console.warn('music blocked:', e)); }
 function stopMusic()  { bgMusic.pause(); }
 function playKaching() { const s = kachingAudio.cloneNode(); s.volume = 0.5; s.play().catch(() => {}); }
 function playSpecialSound(sc) {
@@ -337,7 +336,7 @@ function loadImage(src) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload  = () => resolve(img);
-    img.onerror = () => resolve(null);
+    img.onerror = () => { console.warn('Failed to load image:', src); resolve(null); };
     img.src = src;
   });
 }
@@ -564,11 +563,21 @@ lobbyShop.addEventListener('click',    () => showShop());
 lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); });
 
 // ── Shop ──────────────────────────────────────────────────────────────────────
-document.getElementById('shopBack').addEventListener('click',    () => showLobby());
-document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); showLobby(); });
+function onShopBack() {
+  if (shopFromWaiting) {
+    shopFromWaiting = false;
+    hideAll();
+    canvas.style.display = 'block';
+    resize();
+    // stay in 'waiting' state — loop is already running
+  } else {
+    showLobby();
+  }
+}
+document.getElementById('shopBack').addEventListener('click',    () => onShopBack());
+document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); onShopBack(); });
 
 function renderShop() {
-  console.log('[Shop] render — coins:', playerCoins, 'unlocked:', unlockedSkins, 'active:', activeSkin);
   document.getElementById('shopCoins').textContent = '🎵 ' + playerCoins;
   const grid = document.getElementById('shopGrid');
   if (!grid) { console.error('[Shop] shopGrid element not found!'); return; }
@@ -579,8 +588,6 @@ function renderShop() {
     const owned    = unlockedSkins.includes(key);
     const isActive = activeSkin === key;
     const canBuy   = !owned && playerCoins >= ch.price;
-    console.log('[Shop] card:', key, '| owned:', owned, '| active:', isActive, '| canBuy:', canBuy);
-
     const card = document.createElement('div');
     card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
 
@@ -608,7 +615,6 @@ function renderShop() {
       if (e) e.preventDefault();
       if (guard) return;
       guard = true;
-      console.log('[Shop] doAction:', key, '| owned:', owned);
       if (owned) {
         activeSkin = key;
         await applyActiveSkin(key);
@@ -622,7 +628,6 @@ function renderShop() {
         activeSkin     = key;
         await applyActiveSkin(key);
         await saveProgress();
-        console.log('[Shop] bought:', key, '| new coins:', playerCoins);
         renderShop();
         updateLobbyUI();
       }
@@ -633,7 +638,6 @@ function renderShop() {
     card.append(img, name, bonuses, btn);
     grid.appendChild(card);
   });
-  console.log('[Shop] rendered', grid.children.length, 'cards');
 }
 
 // ── Game state ────────────────────────────────────────────────────────────────
@@ -833,6 +837,9 @@ function drawLeaderboard(y0) {
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
+// Shop button rect on waiting screen (right-bottom)
+const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
+
 function drawWaiting() {
   overlay(0.35);
   txt('Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
@@ -840,6 +847,14 @@ function drawWaiting() {
   drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
   if (Math.floor(performance.now()/600) % 2 === 0)
     txt('Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
+
+  // Shop button
+  const b = SHOP_BTN;
+  ctx.fillStyle = '#1a6aff';
+  ctx.beginPath();
+  ctx.roundRect(b.x, b.y, b.w, b.h, 12);
+  ctx.fill();
+  txt('\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
 }
 function drawGameOver() {
   overlay(0.62);
@@ -896,15 +911,36 @@ function draw() {
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
-function onAction() {
+function canvasXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - rect.left;
+  const cy = (e.clientY ?? e.touches?.[0]?.clientY ?? 0) - rect.top;
+  return { x: cx / rect.width * GW, y: cy / rect.height * GH };
+}
+function hitShopBtn(px, py) {
+  const b = SHOP_BTN;
+  return px >= b.x && px <= b.x+b.w && py >= b.y && py <= b.y+b.h;
+}
+
+function onAction(px, py) {
+  if (state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
+    showShopFromWaiting(); return;
+  }
   if (state === 'youlose')  { returnToLobby(); return; }
   if (state === 'waiting')  { startGame(); return; }
   if (state === 'playing')  { bird.jump(); return; }
   if (state === 'gameover') { resetGame(); return; }
 }
+
+// Shop from waiting screen — show shop, return to waiting on back
+let shopFromWaiting = false;
+function showShopFromWaiting() {
+  shopFromWaiting = true;
+  showShop();
+}
 document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); onAction(); } });
-canvas.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
-canvas.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
+canvas.addEventListener('mousedown',  e => { e.preventDefault(); const p = canvasXY(e); onAction(p.x, p.y); });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); const p = canvasXY(e); onAction(p.x, p.y); }, { passive: false });
 
 // ── Game loop (starts once, runs forever) ─────────────────────────────────────
 let lastTime = 0, loopRunning = false;
