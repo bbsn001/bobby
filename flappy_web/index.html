@@ -14,64 +14,31 @@
       font-family: Arial, sans-serif;
     }
     canvas { display: block; touch-action: none; user-select: none; }
-
-    /* ── Nick popup ─────────────────────────────────────────────────────── */
-    #nick-popup {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.88);
-      display: flex; justify-content: center; align-items: center;
-      z-index: 9999;
-      touch-action: auto;   /* nie blokuj dotyku w popupie */
-    }
-    .popup-box {
-      background: #1a2060;
-      border: 2px solid #ffd700;
-      border-radius: 14px;
-      padding: 32px 24px;
-      text-align: center;
-      color: #fff;
-      width: min(340px, 90vw);
-    }
-    .popup-box h2 { color: #ffd700; font-size: 2rem; margin-bottom: 8px; }
-    .popup-box p  { color: #ccc; font-size: .95rem; margin-bottom: 14px; }
-    #nick-input {
-      display: block; margin: 0 auto 18px;
-      width: 80%; height: 60px; padding: 0 14px;
-      font-size: 16px;                /* 16px zapobiega auto-zoomowi na iOS */
-      border: 2px solid #ffd700; border-radius: 7px;
-      background: #0f1432; color: #fff;
-      text-align: center; outline: none;
-    }
-    #nick-input.error { border-color: #dc3232; }
-    #nick-start {
-      display: block; margin: 0 auto;
-      width: 80%; min-height: 60px;
-      background: #ffd700; color: #0f1432;
-      border: none; padding: 0 24px;
-      font-size: 1.3rem; font-weight: bold;
-      border-radius: 7px; cursor: pointer;
-      touch-action: manipulation;      /* eliminuje 300ms delay na iOS */
-      transition: background .15s;
-    }
-    #nick-start:hover { background: #ffe84a; }
-    .popup-note { margin-top: 14px; font-size: .78rem; color: #888; }
   </style>
 </head>
 <body>
 
-<!-- Nick popup -->
-<div id="nick-popup">
-  <div class="popup-box">
-    <h2>🐦 Bobby Bird</h2>
-    <p>Wpisz swój nick:</p>
-    <input id="nick-input" type="text" maxlength="16" placeholder="Twój nick"
-           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-    <button id="nick-start">▶ START</button>
-    <p class="popup-note">Wyniki trafią do globalnego rankingu</p>
-  </div>
+<!-- Nick screen — canvas jest ukryty dopóki gracz nie wpisze nicku -->
+<div id="nickScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;
+  background:#0a0a2e;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;z-index:9999">
+  <h1 style="color:#ffd700;font-size:2.2em;margin-bottom:24px">&#x1F426; Bobby Bird</h1>
+  <input id="nickInput" type="text" maxlength="16" placeholder="Wpisz nick"
+    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+    style="font-size:16px;padding:0 16px;height:60px;width:70%;max-width:280px;
+    border:2px solid #ffd700;border-radius:10px;background:#0f1432;color:#fff;
+    text-align:center;outline:none;margin-bottom:16px" />
+  <button id="startBtn"
+    style="font-size:20px;padding:0 24px;height:60px;width:70%;max-width:280px;
+    background:#ffd700;color:#0f1432;border:none;border-radius:10px;
+    font-weight:bold;cursor:pointer;touch-action:manipulation">
+    GRAJ
+  </button>
+  <p style="color:#888;font-size:.78rem;margin-top:14px">Wyniki trafią do globalnego rankingu</p>
 </div>
 
-<canvas id="game"></canvas>
+<!-- Canvas ukryty do czasu wpisania nicku -->
+<canvas id="gameCanvas" style="display:none"></canvas>
 
 <script type="module">
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -98,7 +65,6 @@ async function saveScore(nick, score) {
     if (snap.exists()) {
       if (score > snap.data().score)
         await setDoc(ref, { nick, score, date: new Date() });
-      // else lower/equal — skip
     } else {
       await setDoc(ref, { nick, score, date: new Date() });
     }
@@ -114,7 +80,7 @@ async function getTopScores() {
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
-const canvas = document.getElementById('game');
+const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
 const GW = 400, GH = 600;
 canvas.width = GW; canvas.height = GH;
@@ -125,7 +91,6 @@ function resize() {
   canvas.style.height = (GH * s) + 'px';
 }
 window.addEventListener('resize', resize);
-resize();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
@@ -140,10 +105,10 @@ const STARS = Array.from({ length: 25 }, () => ({
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
 const bgMusic = new Audio('assets/music.mp3');
-bgMusic.loop = true; bgMusic.volume = 0.3;          // ← 30%
+bgMusic.loop = true; bgMusic.volume = 0.3;
 
 const kachingAudio  = new Audio('assets/kaching.wav');
-kachingAudio.volume = 0.5;                           // ← 50%
+kachingAudio.volume = 0.5;
 
 const mumiaAudio    = new Audio('assets/mumia.mp3');    mumiaAudio.volume    = 1.0;
 const dzwiek7Audio  = new Audio('assets/7.mp3');        dzwiek7Audio.volume  = 1.0;
@@ -159,7 +124,7 @@ function playKaching() {
 function playSpecialSound(sc) {
   if (sc <= 0) return;
   let snd = null;
-  if      (sc % 100 === 0) snd = krystianAudio;   // highest priority
+  if      (sc % 100 === 0) snd = krystianAudio;
   else if (sc % 10  === 0) snd = mumiaAudio;
   else if (sc % 10  === 7) snd = dzwiek7Audio;
   if (snd) { snd.currentTime = 0; snd.play().catch(() => {}); }
@@ -196,24 +161,39 @@ await new Promise(resolve => {
   ci.onerror = done; ci.src = 'assets/score.jpg';
 });
 
-// ── Nick popup ────────────────────────────────────────────────────────────────
+// ── Nick screen ───────────────────────────────────────────────────────────────
 let playerNick = '';
-const popup     = document.getElementById('nick-popup');
-const nickInput = document.getElementById('nick-input');
-const nickBtn   = document.getElementById('nick-start');
+const nickScreen = document.getElementById('nickScreen');
+const nickInput  = document.getElementById('nickInput');
+const startBtn   = document.getElementById('startBtn');
 
 function submitNick() {
   const val = nickInput.value.trim();
-  if (!val) { nickInput.classList.add('error'); return; }
-  nickInput.classList.remove('error');
+  if (!val) {
+    nickInput.style.borderColor = '#dc3232';
+    return;
+  }
+  nickInput.style.borderColor = '#ffd700';
   playerNick = val.slice(0, 16);
-  popup.style.display = 'none';
+  // Ukryj ekran nicku, pokaż canvas, dopiero teraz uruchom pętlę
+  nickScreen.style.display = 'none';
+  canvas.style.display = 'block';
+  resize();
+  requestAnimationFrame(loop);
 }
-nickBtn.addEventListener('click',    submitNick);
-nickBtn.addEventListener('touchend', e => { e.preventDefault(); submitNick(); });
+
+let nickSubmitted = false;   // guard — touchend + click mogą odpalić 2x
+function onStartBtnActivate() {
+  if (nickSubmitted) return;
+  nickSubmitted = true;
+  submitNick();
+}
+
+startBtn.addEventListener('click',    onStartBtnActivate);
+startBtn.addEventListener('touchend', e => { e.preventDefault(); onStartBtnActivate(); });
 nickInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitNick();
-  e.stopPropagation();   // don't let Space trigger game jump
+  if (e.key === 'Enter') onStartBtnActivate();
+  e.stopPropagation();   // nie pozwól Spacji uruchomić gry
 });
 nickInput.focus();
 
@@ -254,7 +234,6 @@ async function die() {
   gameOverAt = performance.now();
   state = deathCount >= DEATH_LIMIT ? 'youlose' : 'gameover';
 
-  // Save to Firestore and fetch top 10
   leaderboardLoading = true;
   leaderboard = [];
   await saveScore(playerNick, score);
@@ -288,7 +267,6 @@ function update(dt) {
 
   const br = bird.rect();
 
-  // Cloud collection + special sounds
   if (cloudCanvas) {
     for (const p of pipes) {
       if (!p.collected) {
@@ -379,14 +357,10 @@ function drawGameOver() {
   overlay(0.62);
   txt('GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232');
   txt('Score: ' + score, GW/2, 108, 'bold 26px Arial', '#ffd700');
-  // divider
   ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(20, 122); ctx.lineTo(GW-20, 122); ctx.stroke();
-  // leaderboard
   drawLeaderboard(138);
-  // divider
   ctx.beginPath(); ctx.moveTo(20, 395); ctx.lineTo(GW-20, 395); ctx.stroke();
-  // restart
   const rem = Math.max(0, 3-(performance.now()-gameOverAt)/1000).toFixed(1);
   txt('Restart za ' + rem + 's  \u2022  Tap aby teraz', GW/2, 420, '16px Arial', '#888');
 }
@@ -417,7 +391,6 @@ function draw() {
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
   }
 
-  // HUD
   txt(String(score), GW-15, 40, 'bold 32px Arial', '#fff', 'right');
   txt('Deaths: '+deathCount+'/10', 10, 36, '20px Arial', '#a0a0a0', 'left');
 
@@ -426,9 +399,8 @@ function draw() {
   else if (state === 'youlose')  drawYouLose();
 }
 
-// ── Input ─────────────────────────────────────────────────────────────────────
+// ── Input (tylko canvas — popup jest poza drzewem canvas) ─────────────────────
 function onAction() {
-  if (!playerNick)           return;   // wait for nick popup
   if (state === 'youlose')   return;
   if (state === 'waiting')   { startGame(); return; }
   if (state === 'playing')   { bird.jump(); return; }
@@ -438,12 +410,10 @@ function onAction() {
 document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); onAction(); }
 });
-// Listenery na canvas — zdarzenia z popupu (#nick-popup) nie są potomkami canvas,
-// więc nie bubblują tutaj i nie zakłócają inputa ani przycisku Start.
 canvas.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
 
-// ── Loop ──────────────────────────────────────────────────────────────────────
+// ── Loop — uruchamiany dopiero po wpisaniu nicku ───────────────────────────────
 let lastTime = 0;
 function loop(now) {
   const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
@@ -452,7 +422,7 @@ function loop(now) {
   draw();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+// Pętla NIE jest uruchamiana tutaj — startuje w submitNick()
 </script>
 </body>
 </html>
