@@ -613,7 +613,18 @@ function renderShop() {
 // ── Game state ────────────────────────────────────────────────────────────────
 let state  = 'waiting';
 let score  = 0;
-let pipes      = [];
+const MAX_PIPES = 6;
+const pipePool = Array.from({ length: MAX_PIPES }, () => ({
+  active: false, x: 0, topH: 0, botY: 0, passed: false, collected: false
+}));
+function spawnPipe() {
+  const p = pipePool.find(pipe => !pipe.active);
+  if (!p) return;
+  const gc = GH/4 + Math.random() * (GH/2);
+  p.active = true; p.x = GW;
+  p.topH = gc - S_GAP/2; p.botY = gc + S_GAP/2;
+  p.passed = false; p.collected = false;
+}
 let pipeTimer  = 0;
 let gameOverAt = 0;
 let leaderboard = [], leaderboardLoading = false;
@@ -636,7 +647,8 @@ const _pr = { x:0, y:0, w:PIPE_WIDTH, h:0 };
 
 function initNewSession() {
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
-  pipes = []; pipeTimer = 0; score = 0;
+  for (let i = 0; i < MAX_PIPES; i++) pipePool[i].active = false;
+  pipeTimer = 0; score = 0;
   leaderboard = []; leaderboardLoading = false;
   extraLifeAvail = S_EXTRA; flashUntil = 0;
   state = 'waiting';
@@ -644,7 +656,8 @@ function initNewSession() {
 }
 function resetGame() {   // within-session reset (after regular game over)
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
-  pipes = []; pipeTimer = 0; score = 0;
+  for (let i = 0; i < MAX_PIPES; i++) pipePool[i].active = false;
+  pipeTimer = 0; score = 0;
   leaderboard = []; leaderboardLoading = false;
   extraLifeAvail = S_EXTRA; flashUntil = 0;
   stopMusic(); state = 'waiting';
@@ -686,24 +699,16 @@ function update(dt) {
   bird.update(dt);
 
   pipeTimer += dt;
-  if (pipeTimer >= PIPE_INTERVAL) {
-    const gc = GH/4 + Math.random() * (GH/2);
-    pipes.push({ x: GW, topH: gc - S_GAP/2, botY: gc + S_GAP/2, passed: false, collected: false });
-    pipeTimer = 0;
-  }
+  if (pipeTimer >= PIPE_INTERVAL) { spawnPipe(); pipeTimer = 0; }
 
   const f = dt / 16.667;
-  for (let i = pipes.length - 1; i >= 0; i--) {
-    const p = pipes[i];
+  const br = bird.rect();
+  for (let i = 0; i < MAX_PIPES; i++) {
+    const p = pipePool[i];
+    if (!p.active) continue;
     p.x -= S_SPEED * f;
     if (!p.passed && p.x + PIPE_WIDTH < bird.x) p.passed = true;
-    if (p.x + PIPE_WIDTH <= 0) pipes.splice(i, 1);
-  }
-
-  const br = bird.rect();
-
-  // Collectible collision
-  for (const p of pipes) {
+    if (p.x + PIPE_WIDTH <= 0) { p.active = false; continue; }
     if (!p.collected) {
       _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2;
       _cr.y = (p.topH + p.botY)/2 - collectH/2;
@@ -711,21 +716,16 @@ function update(dt) {
       if (overlaps(br, _cr)) {
         p.collected = true;
         const pts = S_DOUBLE ? 2 : 1;
-        score       += pts;
-        playerCoins += pts;
-        playKaching();
-        playSpecialSound(score);
+        score += pts; playerCoins += pts;
+        playKaching(); playSpecialSound(score);
       }
     }
-  }
-
-  if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
-  for (const p of pipes) {
-    _pr.x = p.x; _pr.y = 0;      _pr.h = p.topH;
+    _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
     if (overlaps(br, _pr)) { die(); return; }
     _pr.y = p.botY; _pr.h = GH - p.botY;
     if (overlaps(br, _pr)) { die(); return; }
   }
+  if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
 }
 
 // ── Draw helpers ──────────────────────────────────────────────────────────────
@@ -816,7 +816,9 @@ function drawGameOver() {
 function draw() {
   ctx.drawImage(bgCacheCanvas, 0, 0);
 
-  for (const p of pipes) {
+  for (let i = 0; i < MAX_PIPES; i++) {
+    const p = pipePool[i];
+    if (!p.active) continue;
     drawPipe(p);
     if (collectImg && !p.collected)
       ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
