@@ -83,7 +83,11 @@ async function getTopScores() {
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
 const GW = 400, GH = 600;
-canvas.width = GW; canvas.height = GH;
+const dpr = Math.min(window.devicePixelRatio || 1, 3); // cap at 3× — oszczędność RAM
+canvas.width  = Math.round(GW * dpr);
+canvas.height = Math.round(GH * dpr);
+canvas.style.imageRendering = 'auto';
+ctx.scale(dpr, dpr); // wszystkie rysowania używają logicznych GW/GH — DPR transparentny
 
 function resize() {
   const s = Math.min(window.innerWidth / GW, window.innerHeight / GH);
@@ -210,9 +214,10 @@ let leaderboardLoading = false;
 
 const bird = {
   x: 80, y: GH / 2, vy: 0,
+  _r:    { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 }, // cached — brak alokacji
   jump()     { this.vy = JUMP_FORCE; },
   update(dt) { const f = dt/16.667; this.vy += GRAVITY*f; this.y += this.vy*f; },
-  rect()     { const m=8; return { x:this.x+m, y:this.y+m, w:BIRD_SIZE-m*2, h:BIRD_SIZE-m*2 }; }
+  rect()     { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
 };
 
 function spawnPipe() {
@@ -245,6 +250,10 @@ function overlaps(a, b) {
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 }
 
+// ── Reusable scratch rects (brak alokacji w pętli gry) ────────────────────────
+const _cr = { x: 0, y: 0, w: CLOUD_W,    h: 0 }; // cloud
+const _pr = { x: 0, y: 0, w: PIPE_WIDTH, h: 0 }; // pipe (top i bottom naprzemian)
+
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
   if (state === 'gameover') {
@@ -270,10 +279,10 @@ function update(dt) {
   if (cloudCanvas) {
     for (const p of pipes) {
       if (!p.collected) {
-        const cr = { x: p.x + PIPE_WIDTH/2 - CLOUD_W/2,
-                     y: (p.topH + p.botY)/2 - cloudH/2,
-                     w: CLOUD_W, h: cloudH };
-        if (overlaps(br, cr)) {
+        _cr.x = p.x + PIPE_WIDTH/2 - CLOUD_W/2;
+        _cr.y = (p.topH + p.botY)/2 - cloudH/2;
+        _cr.h = cloudH;
+        if (overlaps(br, _cr)) {
           p.collected = true;
           score++;
           playKaching();
@@ -285,10 +294,11 @@ function update(dt) {
 
   if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
   for (const p of pipes) {
-    if (overlaps(br, { x: p.x, y: 0,     w: PIPE_WIDTH, h: p.topH       }) ||
-        overlaps(br, { x: p.x, y: p.botY, w: PIPE_WIDTH, h: GH - p.botY })) {
-      die(); return;
-    }
+    _pr.x = p.x;
+    _pr.y = 0;      _pr.h = p.topH;
+    if (overlaps(br, _pr)) { die(); return; }
+    _pr.y = p.botY; _pr.h = GH - p.botY;
+    if (overlaps(br, _pr)) { die(); return; }
   }
 }
 
