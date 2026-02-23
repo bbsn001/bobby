@@ -8,44 +8,178 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%; height: 100%;
-      background: #0f1432;
-      display: flex; justify-content: center; align-items: center;
-      overflow: hidden;
+      background: #0a0a2e;
       font-family: Arial, sans-serif;
+      overflow: hidden;
     }
     canvas { display: block; touch-action: none; user-select: none; }
+
+    /* ── Shared screen ───────────────────────────────────────────────────── */
+    .screen {
+      position: fixed; inset: 0;
+      background: #0a0a2e;
+      display: flex; flex-direction: column; align-items: center;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      z-index: 100;
+    }
+    .screen-inner {
+      width: 100%; max-width: 500px;
+      padding: 32px 20px;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100%;
+      justify-content: center;
+    }
+    .screen-title  { color: #ffd700; font-size: 2.2em; font-weight: bold; margin-bottom: 6px; text-align: center; }
+    .screen-sub    { color: #aaa; font-size: .88rem; margin-bottom: 24px; text-align: center; }
+
+    /* ── Inputs / Buttons ───────────────────────────────────────────────── */
+    .big-input {
+      width: 80%; max-width: 280px; height: 58px;
+      font-size: 16px; padding: 0 16px; text-align: center;
+      border: 2px solid #ffd700; border-radius: 10px;
+      background: #0f1432; color: #fff; outline: none;
+      margin-bottom: 14px;
+    }
+    .big-input.error { border-color: #dc3232; }
+    .btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 80%; max-width: 280px; height: 56px;
+      font-size: 1.1rem; font-weight: bold;
+      border: none; border-radius: 10px; cursor: pointer;
+      touch-action: manipulation; margin-bottom: 10px;
+      transition: filter .12s;
+    }
+    .btn:active { filter: brightness(.82); }
+    .btn-yellow { background: #ffd700; color: #0f1432; }
+    .btn-blue   { background: #1a6aff; color: #fff; }
+    .btn-dark   { background: #1e1e4a; color: #aaa; border: 1px solid #333; }
+    .btn-sm     { height: 40px; font-size: .88rem; width: auto; padding: 0 18px; margin-bottom: 0; }
+
+    /* ── Coins badge ────────────────────────────────────────────────────── */
+    .coins { color: #ffd700; font-size: 1.05rem; margin-bottom: 16px; }
+
+    /* ── Character preview (lobby) ───────────────────────────────────────── */
+    .char-preview {
+      display: flex; align-items: center; gap: 12px;
+      background: #131340; border: 1px solid #2a2a6a;
+      border-radius: 12px; padding: 10px 14px;
+      margin-bottom: 20px; width: 80%; max-width: 280px;
+    }
+    .char-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; background: #0f1432; }
+    .cp-name  { color: #fff; font-weight: bold; font-size: .9rem; }
+    .cp-bonus { color: #8be; font-size: .72rem; margin-top: 2px; }
+
+    /* ── Timer selector ─────────────────────────────────────────────────── */
+    .timer-label { color: #aaa; font-size: .82rem; margin-bottom: 8px; }
+    .timer-row   { display: flex; gap: 10px; margin-bottom: 22px; }
+    .timer-btn {
+      flex: 1; max-width: 90px; height: 46px;
+      background: #131340; color: #aaa;
+      border: 2px solid #2a2a6a; border-radius: 8px;
+      font-size: .95rem; font-weight: bold; cursor: pointer;
+      touch-action: manipulation; transition: all .12s;
+    }
+    .timer-btn.active { background: #ffd700; color: #0f1432; border-color: #ffd700; }
+
+    /* ── Shop ───────────────────────────────────────────────────────────── */
+    .shop-header {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; margin-bottom: 18px;
+    }
+    .shop-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px; width: 100%;
+    }
+    @media (min-width: 460px) { .shop-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .char-card {
+      background: #131340; border: 2px solid #2a2a6a;
+      border-radius: 12px; padding: 10px 8px 10px;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      position: relative;
+    }
+    .char-card.active-card { border-color: #22b422; }
+    .char-card.majka-card  { border-color: #ffd700; box-shadow: 0 0 14px #ffd70055; }
+    .char-card img {
+      width: 68px; height: 68px; object-fit: cover;
+      border-radius: 8px; background: #0f1432;
+    }
+    .cc-name    { color: #fff; font-weight: bold; font-size: .85rem; text-align: center; }
+    .cc-bonuses { color: #8be; font-size: .62rem; text-align: center; line-height: 1.35; min-height: 26px; }
+    .cc-btn {
+      width: 100%; height: 34px;
+      font-size: .78rem; font-weight: bold;
+      border: none; border-radius: 7px; cursor: pointer;
+      touch-action: manipulation; margin-top: 2px;
+    }
+    .cc-btn.active  { background: #22b422; color: #fff; }
+    .cc-btn.select  { background: #1a6aff; color: #fff; }
+    .cc-btn.buy     { background: #ffd700; color: #0f1432; }
+    .cc-btn.locked  { background: #1e1e4a; color: #444; cursor: default; }
   </style>
 </head>
 <body>
 
-<!-- Nick screen — canvas jest ukryty dopóki gracz nie wpisze nicku -->
-<div id="nickScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;
-  background:#0a0a2e;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;z-index:9999">
-  <h1 style="color:#ffd700;font-size:2.2em;margin-bottom:24px">&#x1F426; Bobby Bird</h1>
-  <input id="nickInput" type="text" maxlength="16" placeholder="Wpisz nick"
-    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-    style="font-size:16px;padding:0 16px;height:60px;width:70%;max-width:280px;
-    border:2px solid #ffd700;border-radius:10px;background:#0f1432;color:#fff;
-    text-align:center;outline:none;margin-bottom:16px" />
-  <button id="startBtn"
-    style="font-size:20px;padding:0 24px;height:60px;width:70%;max-width:280px;
-    background:#ffd700;color:#0f1432;border:none;border-radius:10px;
-    font-weight:bold;cursor:pointer;touch-action:manipulation">
-    GRAJ
-  </button>
-  <p style="color:#888;font-size:.78rem;margin-top:14px">Wyniki trafią do globalnego rankingu</p>
+<!-- ── Nick screen ──────────────────────────────────────────────────────── -->
+<div id="nickScreen" class="screen">
+  <div class="screen-inner">
+    <div class="screen-title">&#x1F426; Bobby Bird</div>
+    <div class="screen-sub">Wpisz nick, żeby grać</div>
+    <input id="nickInput" class="big-input" type="text" maxlength="16"
+      placeholder="Twój nick"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <button id="nickConfirm" class="btn btn-yellow">DALEJ →</button>
+  </div>
 </div>
 
-<!-- Canvas ukryty do czasu wpisania nicku -->
-<canvas id="gameCanvas" style="display:none"></canvas>
+<!-- ── Lobby screen ─────────────────────────────────────────────────────── -->
+<div id="lobbyScreen" class="screen" style="display:none">
+  <div class="screen-inner">
+    <div class="screen-title" style="font-size:1.55em;margin-bottom:2px">Bobby Bird</div>
+    <div id="lobbyNick" style="color:#aaa;font-size:.85rem;margin-bottom:10px"></div>
+    <div id="lobbyCoins" class="coins">🎵 0 coinów</div>
+
+    <div id="charPreview" class="char-preview">
+      <img id="charPreviewImg" src="" alt="" />
+      <div>
+        <div id="charPreviewName" class="cp-name">Bobby</div>
+        <div id="charPreviewBonus" class="cp-bonus">brak bonusów</div>
+      </div>
+    </div>
+
+    <div class="timer-label">Czas rundy:</div>
+    <div class="timer-row">
+      <button class="timer-btn active" data-sec="180">3 min</button>
+      <button class="timer-btn"        data-sec="300">5 min</button>
+      <button class="timer-btn"        data-sec="600">10 min</button>
+    </div>
+
+    <button id="lobbyPlay" class="btn btn-yellow">▶ GRAJ</button>
+    <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
+  </div>
+</div>
+
+<!-- ── Shop screen ──────────────────────────────────────────────────────── -->
+<div id="shopScreen" class="screen" style="display:none">
+  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+    <div class="shop-header">
+      <button id="shopBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
+      <div id="shopCoins" class="coins" style="margin:0">🎵 0</div>
+    </div>
+    <div id="shopGrid" class="shop-grid"></div>
+  </div>
+</div>
+
+<!-- ── Game canvas (hidden until game starts) ───────────────────────────── -->
+<canvas id="gameCanvas" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%)"></canvas>
 
 <script type="module">
 // ── Firebase ──────────────────────────────────────────────────────────────────
-import { initializeApp }                              from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, doc,
-         getDoc, setDoc,
-         getDocs, query, orderBy, limit }             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+         getDoc, setDoc, getDocs,
+         query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCv02h10zIVw8DhrBhryiDnFIa_peZklKQ",
@@ -58,36 +192,87 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-async function saveScore(nick, score) {
+// ── Character definitions ─────────────────────────────────────────────────────
+const CHARACTERS = {
+  bobby:    { name:'Bobby',     img:'bobby.jpg',    price:0,   col:'soundcloud.jpg',
+              bonuses:[],                         desc:'brak bonusów' },
+  bialek:   { name:'Bialek',    img:'bialek.png',   price:30,  col:'nina.png',
+              bonuses:['gap+20'],                 desc:'+szerszy przelot' },
+  deadman:  { name:'Deadman',   img:'deadman.png',  price:60,  col:'grammy.png',
+              bonuses:['speed-10'],               desc:'rury −10%' },
+  krystian: { name:'Krystian',  img:'krystian.png', price:100, col:'diormind.png',
+              bonuses:['double'],                 desc:'×2 punkty' },
+  johnny:   { name:'Johnny',    img:'johnny.png',   price:150, col:'joint.png',
+              bonuses:['gap+20','speed-10'],      desc:'+przelot, rury −10%' },
+  kolin:    { name:'Kolin',     img:'kolin.png',    price:200, col:'strzykawka.png',
+              bonuses:['extralife'],              desc:'+1 życie' },
+  kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:250, col:'dziecko.png',
+              bonuses:['speed-15','double'],      desc:'rury −15%, ×2 pkt' },
+  reczu:    { name:'Reczu',     img:'reczu.png',    price:300, col:'kutas.png',
+              bonuses:['gap+30','extralife'],     desc:'+przelot 30px, +1 życie' },
+  szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:400, col:'scat.png',
+              bonuses:['speed-20','gap+30','double'], desc:'rury −20%, +przelot 30px, ×2 pkt' },
+  tom:      { name:'Tom',       img:'tom.png',      price:500, col:'wozek.png',
+              bonuses:['extralife','double','speed-20'], desc:'+życie, ×2 pkt, rury −20%' },
+  majka:    { name:'Majka 👑',  img:'majka.png',    price:666, col:'onlyfans.png',
+              bonuses:['gap+60','speed-40','double','extralife'],
+              desc:'WSZYSTKO: −40% rury, +60px, ×2, +życie', special:true },
+};
+const CHAR_KEYS = Object.keys(CHARACTERS);
+
+// ── Firestore helpers ─────────────────────────────────────────────────────────
+async function loadPlayerData(nick) {
   try {
-    const ref  = doc(db, 'leaderboard', nick);
-    const snap = await getDoc(ref);
+    const snap = await getDoc(doc(db, 'leaderboard', nick));
     if (snap.exists()) {
-      if (score > snap.data().score)
-        await setDoc(ref, { nick, score, date: new Date() });
-    } else {
-      await setDoc(ref, { nick, score, date: new Date() });
+      const d = snap.data();
+      return {
+        coins:         d.coins          ?? 0,
+        unlockedSkins: d.unlockedSkins  ?? ['bobby'],
+        activeSkin:    d.activeSkin     ?? 'bobby',
+      };
     }
-  } catch(e) { console.warn('Firestore save:', e); }
+  } catch(e) { console.warn('loadPlayerData:', e); }
+  return { coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby' };
 }
+
+async function saveProgress() {
+  try {
+    await setDoc(doc(db, 'leaderboard', playerNick),
+      { coins: playerCoins, unlockedSkins, activeSkin }, { merge: true });
+  } catch(e) { console.warn('saveProgress:', e); }
+}
+
+async function saveScoreAndProgress(roundScore) {
+  try {
+    const ref  = doc(db, 'leaderboard', playerNick);
+    const snap = await getDoc(ref);
+    const best = snap.exists() ? Math.max(roundScore, snap.data().score ?? 0) : roundScore;
+    await setDoc(ref, {
+      nick: playerNick, score: best, date: new Date(),
+      coins: playerCoins, unlockedSkins, activeSkin
+    }, { merge: true });
+  } catch(e) { console.warn('saveScoreAndProgress:', e); }
+}
+
 async function getTopScores() {
   try {
     const snap = await getDocs(
-      query(collection(db, 'leaderboard'), orderBy('score', 'desc'), limit(10))
+      query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(10))
     );
     return snap.docs.map(d => d.data());
-  } catch(e) { console.warn('Firestore fetch:', e); return []; }
+  } catch(e) { console.warn('getTopScores:', e); return []; }
 }
 
-// ── Canvas ────────────────────────────────────────────────────────────────────
+// ── Canvas & DPR ──────────────────────────────────────────────────────────────
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
 const GW = 400, GH = 600;
-const dpr = Math.min(window.devicePixelRatio || 1, 3); // cap at 3× — oszczędność RAM
+const dpr = Math.min(window.devicePixelRatio || 1, 3);
 canvas.width  = Math.round(GW * dpr);
 canvas.height = Math.round(GH * dpr);
 canvas.style.imageRendering = 'auto';
-ctx.scale(dpr, dpr); // wszystkie rysowania używają logicznych GW/GH — DPR transparentny
+ctx.scale(dpr, dpr);
 
 function resize() {
   const s = Math.min(window.innerWidth / GW, window.innerHeight / GH);
@@ -96,10 +281,10 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Base constants ────────────────────────────────────────────────────────────
 const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
 const PIPE_GAP = 175, PIPE_WIDTH = 72, PIPE_INTERVAL = 1750;
-const BIRD_SIZE = 60, CLOUD_W = 70, DEATH_LIMIT = 10;
+const BIRD_SIZE = 60, COL_W = 70, DEATH_LIMIT = 10;
 
 // ── Stars ─────────────────────────────────────────────────────────────────────
 const STARS = Array.from({ length: 25 }, () => ({
@@ -107,24 +292,18 @@ const STARS = Array.from({ length: 25 }, () => ({
   r: Math.random() < 0.3 ? 1.5 : 1
 }));
 
-// ── Audio ─────────────────────────────────────────────────────────────────────
-const bgMusic = new Audio('assets/music.mp3');
+// ── Audio (sounds in assets/sounds/) ─────────────────────────────────────────
+const bgMusic     = new Audio('assets/sounds/music.mp3');
 bgMusic.loop = true; bgMusic.volume = 0.3;
 
-const kachingAudio  = new Audio('assets/kaching.wav');
-kachingAudio.volume = 0.5;
-
-const mumiaAudio    = new Audio('assets/mumia.mp3');    mumiaAudio.volume    = 1.0;
-const dzwiek7Audio  = new Audio('assets/7.mp3');        dzwiek7Audio.volume  = 1.0;
-const krystianAudio = new Audio('assets/krystian.mp3'); krystianAudio.volume = 1.0;
+const kachingAudio  = new Audio('assets/sounds/kaching.wav'); kachingAudio.volume  = 0.5;
+const mumiaAudio    = new Audio('assets/sounds/mumia.mp3');   mumiaAudio.volume    = 1.0;
+const dzwiek7Audio  = new Audio('assets/sounds/7.mp3');       dzwiek7Audio.volume  = 1.0;
+const krystianAudio = new Audio('assets/sounds/krystian.mp3');krystianAudio.volume = 1.0;
 
 function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(() => {}); }
 function stopMusic()  { bgMusic.pause(); }
-
-function playKaching() {
-  const s = kachingAudio.cloneNode(); s.volume = 0.5; s.play().catch(() => {});
-}
-
+function playKaching() { const s = kachingAudio.cloneNode(); s.volume = 0.5; s.play().catch(() => {}); }
 function playSpecialSound(sc) {
   if (sc <= 0) return;
   let snd = null;
@@ -134,9 +313,16 @@ function playSpecialSound(sc) {
   if (snd) { snd.currentTime = 0; snd.play().catch(() => {}); }
 }
 
-// ── Images ────────────────────────────────────────────────────────────────────
-let playerCanvas = null, cloudCanvas = null, cloudH = CLOUD_W;
-
+// ── Image helpers ─────────────────────────────────────────────────────────────
+function loadImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
 function removeWhiteBg(img, w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -151,55 +337,218 @@ function removeWhiteBg(img, w, h) {
   return c;
 }
 
-await new Promise(resolve => {
-  let pending = 2;
-  const done = () => { if (--pending === 0) resolve(); };
-  const pi = new Image(); pi.crossOrigin = 'anonymous';
-  pi.onload  = () => { playerCanvas = removeWhiteBg(pi, pi.naturalWidth, pi.naturalHeight); done(); };
-  pi.onerror = done; pi.src = 'assets/player.jpg';
-  const ci = new Image(); ci.crossOrigin = 'anonymous';
-  ci.onload = () => {
-    cloudH = Math.max(1, Math.round(ci.naturalHeight * CLOUD_W / ci.naturalWidth));
-    cloudCanvas = removeWhiteBg(ci, CLOUD_W, cloudH); done();
-  };
-  ci.onerror = done; ci.src = 'assets/score.jpg';
-});
+// Per-skin caches
+const spriteCache     = {}; // key → offscreen canvas
+const collectCache    = {}; // key → { canvas, h }
 
-// ── Nick screen ───────────────────────────────────────────────────────────────
-let playerNick = '';
-const nickScreen = document.getElementById('nickScreen');
-const nickInput  = document.getElementById('nickInput');
-const startBtn   = document.getElementById('startBtn');
-
-function submitNick() {
-  const val = nickInput.value.trim();
-  if (!val) {
-    nickInput.style.borderColor = '#dc3232';
-    return;
+async function ensureSprite(key) {
+  if (spriteCache[key] !== undefined) return;
+  const img = await loadImage(`assets/characters/${CHARACTERS[key].img}`);
+  spriteCache[key] = img ? removeWhiteBg(img, img.naturalWidth, img.naturalHeight) : null;
+}
+async function ensureCollectible(key) {
+  if (collectCache[key] !== undefined) return;
+  const img = await loadImage(`assets/collectibles/${CHARACTERS[key].col}`);
+  if (img) {
+    const h = Math.max(1, Math.round(img.naturalHeight * COL_W / img.naturalWidth));
+    collectCache[key] = { canvas: removeWhiteBg(img, COL_W, h), h };
+  } else {
+    collectCache[key] = null;
   }
-  nickInput.style.borderColor = '#ffd700';
-  playerNick = val.slice(0, 16);
-  // Ukryj ekran nicku, pokaż canvas, dopiero teraz uruchom pętlę
-  nickScreen.style.display = 'none';
+}
+
+// Active skin assets (set in applyActiveSkin)
+let playerCanvas    = null;
+let collectCanvas   = null;
+let collectH        = COL_W;
+
+async function applyActiveSkin(key) {
+  await ensureSprite(key);
+  await ensureCollectible(key);
+  playerCanvas  = spriteCache[key] || null;
+  const c = collectCache[key];
+  collectCanvas = c ? c.canvas : null;
+  collectH      = c ? c.h     : COL_W;
+}
+
+// ── Player state ──────────────────────────────────────────────────────────────
+let playerNick    = '';
+let playerCoins   = 0;
+let unlockedSkins = ['bobby'];
+let activeSkin    = 'bobby';
+
+// ── Session params (computed from active skin) ────────────────────────────────
+let S_GAP = PIPE_GAP, S_SPEED = PIPE_SPEED, S_DOUBLE = false, S_EXTRA = false;
+
+function computeSessionParams() {
+  const b = CHARACTERS[activeSkin].bonuses;
+  S_GAP  = PIPE_GAP + (b.includes('gap+60')?60 : b.includes('gap+30')?30 : b.includes('gap+20')?20 : 0);
+  S_SPEED = PIPE_SPEED * (b.includes('speed-40')?.60 : b.includes('speed-20')?.80
+                        : b.includes('speed-15')?.85 : b.includes('speed-10')?.90 : 1);
+  S_DOUBLE = b.includes('double');
+  S_EXTRA  = b.includes('extralife');
+}
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+let selectedTimer  = 180;
+let roundStartTime = 0;
+let timerRemaining = 180;
+
+// ── Extra life ────────────────────────────────────────────────────────────────
+let extraLifeAvail = false;
+let flashUntil     = 0;
+
+// ── Screen management ─────────────────────────────────────────────────────────
+const nickScreen  = document.getElementById('nickScreen');
+const lobbyScreen = document.getElementById('lobbyScreen');
+const shopScreen  = document.getElementById('shopScreen');
+
+function hideAll() {
+  nickScreen.style.display  = 'none';
+  lobbyScreen.style.display = 'none';
+  shopScreen.style.display  = 'none';
+  canvas.style.display      = 'none';
+}
+function showLobby() {
+  hideAll();
+  lobbyScreen.style.display = 'flex';
+  updateLobbyUI();
+}
+function showShop() {
+  hideAll();
+  shopScreen.style.display = 'flex';
+  renderShop();
+}
+function showGame() {
+  hideAll();
   canvas.style.display = 'block';
   resize();
-  requestAnimationFrame(loop);
+  startGameLoop();
 }
 
-let nickSubmitted = false;   // guard — touchend + click mogą odpalić 2x
-function onStartBtnActivate() {
-  if (nickSubmitted) return;
-  nickSubmitted = true;
-  submitNick();
+// ── Nick screen ───────────────────────────────────────────────────────────────
+const nickInput   = document.getElementById('nickInput');
+const nickConfirm = document.getElementById('nickConfirm');
+let nickDone = false;
+
+async function onNickConfirm() {
+  if (nickDone) return;
+  const val = nickInput.value.trim();
+  if (!val) { nickInput.classList.add('error'); return; }
+  nickInput.classList.remove('error');
+  nickDone = true;
+
+  playerNick = val.slice(0, 16);
+  const data = await loadPlayerData(playerNick);
+  playerCoins   = data.coins;
+  unlockedSkins = data.unlockedSkins;
+  if (!unlockedSkins.includes('bobby')) unlockedSkins.push('bobby');
+  activeSkin    = unlockedSkins.includes(data.activeSkin) ? data.activeSkin : 'bobby';
+
+  await applyActiveSkin(activeSkin);
+  showLobby();
 }
 
-startBtn.addEventListener('click',    onStartBtnActivate);
-startBtn.addEventListener('touchend', e => { e.preventDefault(); onStartBtnActivate(); });
-nickInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') onStartBtnActivate();
-  e.stopPropagation();   // nie pozwól Spacji uruchomić gry
-});
+nickConfirm.addEventListener('click',    onNickConfirm);
+nickConfirm.addEventListener('touchend', e => { e.preventDefault(); onNickConfirm(); });
+nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') onNickConfirm(); e.stopPropagation(); });
 nickInput.focus();
+
+// ── Lobby UI ──────────────────────────────────────────────────────────────────
+function updateLobbyUI() {
+  document.getElementById('lobbyNick').textContent        = playerNick;
+  document.getElementById('lobbyCoins').textContent       = '🎵 ' + playerCoins + ' coinów';
+  document.getElementById('charPreviewName').textContent  = CHARACTERS[activeSkin].name;
+  document.getElementById('charPreviewBonus').textContent = CHARACTERS[activeSkin].desc;
+  document.getElementById('charPreviewImg').src = `assets/characters/${CHARACTERS[activeSkin].img}`;
+}
+
+document.querySelectorAll('.timer-btn').forEach(btn => {
+  function pick() {
+    document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTimer = parseInt(btn.dataset.sec);
+  }
+  btn.addEventListener('click',    pick);
+  btn.addEventListener('touchend', e => { e.preventDefault(); pick(); });
+});
+
+let lobbyPlayGuard = false;
+async function onLobbyPlay() {
+  if (lobbyPlayGuard) return;
+  lobbyPlayGuard = true;
+  computeSessionParams();
+  await applyActiveSkin(activeSkin);
+  initNewSession();
+  showGame();
+}
+
+const lobbyPlay = document.getElementById('lobbyPlay');
+const lobbyShop = document.getElementById('lobbyShop');
+lobbyPlay.addEventListener('click',    onLobbyPlay);
+lobbyPlay.addEventListener('touchend', e => { e.preventDefault(); onLobbyPlay(); });
+lobbyShop.addEventListener('click',    () => showShop());
+lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); });
+
+// ── Shop ──────────────────────────────────────────────────────────────────────
+document.getElementById('shopBack').addEventListener('click',    () => showLobby());
+document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); showLobby(); });
+
+function renderShop() {
+  document.getElementById('shopCoins').textContent = '🎵 ' + playerCoins;
+  const grid = document.getElementById('shopGrid');
+  grid.innerHTML = '';
+
+  CHAR_KEYS.forEach(key => {
+    const ch      = CHARACTERS[key];
+    const owned   = unlockedSkins.includes(key);
+    const isActive = activeSkin === key;
+    const canBuy  = !owned && playerCoins >= ch.price;
+
+    const card = document.createElement('div');
+    card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
+
+    const img = document.createElement('img');
+    img.src = `assets/characters/${ch.img}`;
+    img.alt = ch.name;
+
+    const name = document.createElement('div');
+    name.className = 'cc-name'; name.textContent = ch.name;
+
+    const bonuses = document.createElement('div');
+    bonuses.className = 'cc-bonuses'; bonuses.textContent = ch.desc;
+
+    const btn = document.createElement('button');
+    btn.className = 'cc-btn ' + (isActive?'active' : owned?'select' : canBuy?'buy':'locked');
+    btn.textContent = isActive ? '✓ AKTYWNA' : owned ? 'WYBIERZ'
+                    : canBuy  ? `KUP 🎵${ch.price}` : `🔒 ${ch.price}🎵`;
+    if (isActive || (!owned && !canBuy)) btn.disabled = true;
+
+    let guard = false;
+    async function doAction() {
+      if (guard) return; guard = true;
+      if (owned) {
+        activeSkin = key;
+        await applyActiveSkin(key);
+        await saveProgress();
+        renderShop(); updateLobbyUI();
+      } else {
+        if (playerCoins < ch.price) { guard = false; return; }
+        playerCoins  -= ch.price;
+        unlockedSkins = [...unlockedSkins, key];
+        activeSkin    = key;
+        await applyActiveSkin(key);
+        await saveProgress();
+        renderShop(); updateLobbyUI();
+      }
+    }
+    btn.addEventListener('click',    doAction);
+    btn.addEventListener('touchend', e => { e.preventDefault(); doAction(); });
+
+    card.append(img, name, bonuses, btn);
+    grid.appendChild(card);
+  });
+}
 
 // ── Game state ────────────────────────────────────────────────────────────────
 let state      = 'waiting';
@@ -208,32 +557,57 @@ let score      = 0;
 let pipes      = [];
 let pipeTimer  = 0;
 let gameOverAt = 0;
-
-let leaderboard        = [];
-let leaderboardLoading = false;
+let leaderboard = [], leaderboardLoading = false;
 
 const bird = {
   x: 80, y: GH / 2, vy: 0,
-  _r:    { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 }, // cached — brak alokacji
+  _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
   jump()     { this.vy = JUMP_FORCE; },
   update(dt) { const f = dt/16.667; this.vy += GRAVITY*f; this.y += this.vy*f; },
   rect()     { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
 };
 
-function spawnPipe() {
-  const gc = GH/4 + Math.random() * (GH/2);
-  pipes.push({ x: GW, topH: gc - PIPE_GAP/2, botY: gc + PIPE_GAP/2,
-               passed: false, collected: false });
-}
-function resetGame() {
+// Reusable scratch rects — no per-frame allocation
+const _cr = { x:0, y:0, w:COL_W,      h:0 };
+const _pr = { x:0, y:0, w:PIPE_WIDTH, h:0 };
+
+function initNewSession() {
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
   pipes = []; pipeTimer = 0; score = 0;
   leaderboard = []; leaderboardLoading = false;
+  deathCount  = 0;
+  extraLifeAvail = S_EXTRA; flashUntil = 0;
+  state = 'waiting';
+  stopMusic();
+}
+function resetGame() {   // within-session reset (after regular game over)
+  bird.x = 80; bird.y = GH/2; bird.vy = 0;
+  pipes = []; pipeTimer = 0; score = 0;
+  leaderboard = []; leaderboardLoading = false;
+  extraLifeAvail = S_EXTRA; flashUntil = 0;
   stopMusic(); state = 'waiting';
 }
-function startGame() { state = 'playing'; bird.jump(); startMusic(); }
+function startGame() {
+  state = 'playing';
+  bird.jump();
+  roundStartTime = performance.now();
+  timerRemaining = selectedTimer;
+  startMusic();
+}
+function returnToLobby() {
+  stopMusic();
+  lobbyPlayGuard = false;
+  showLobby();
+}
 
 async function die() {
+  // Extra life shield
+  if (extraLifeAvail) {
+    extraLifeAvail = false;
+    flashUntil = performance.now() + 1200;
+    return;
+  }
+
   deathCount++;
   stopMusic();
   gameOverAt = performance.now();
@@ -241,7 +615,7 @@ async function die() {
 
   leaderboardLoading = true;
   leaderboard = [];
-  await saveScore(playerNick, score);
+  await saveScoreAndProgress(score);
   leaderboard = await getTopScores();
   leaderboardLoading = false;
 }
@@ -249,10 +623,6 @@ async function die() {
 function overlaps(a, b) {
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 }
-
-// ── Reusable scratch rects (brak alokacji w pętli gry) ────────────────────────
-const _cr = { x: 0, y: 0, w: CLOUD_W,    h: 0 }; // cloud
-const _pr = { x: 0, y: 0, w: PIPE_WIDTH, h: 0 }; // pipe (top i bottom naprzemian)
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
@@ -262,40 +632,48 @@ function update(dt) {
   }
   if (state !== 'playing') return;
 
+  // Timer
+  timerRemaining = selectedTimer - (performance.now() - roundStartTime) / 1000;
+  if (timerRemaining <= 0) { timerRemaining = 0; die(); return; }
+
   bird.update(dt);
 
   pipeTimer += dt;
-  if (pipeTimer >= PIPE_INTERVAL) { spawnPipe(); pipeTimer = 0; }
+  if (pipeTimer >= PIPE_INTERVAL) {
+    const gc = GH/4 + Math.random() * (GH/2);
+    pipes.push({ x: GW, topH: gc - S_GAP/2, botY: gc + S_GAP/2, passed: false, collected: false });
+    pipeTimer = 0;
+  }
 
   const f = dt / 16.667;
   for (const p of pipes) {
-    p.x -= PIPE_SPEED * f;
+    p.x -= S_SPEED * f;
     if (!p.passed && p.x + PIPE_WIDTH < bird.x) p.passed = true;
   }
   pipes = pipes.filter(p => p.x + PIPE_WIDTH > 0);
 
   const br = bird.rect();
 
-  if (cloudCanvas) {
-    for (const p of pipes) {
-      if (!p.collected) {
-        _cr.x = p.x + PIPE_WIDTH/2 - CLOUD_W/2;
-        _cr.y = (p.topH + p.botY)/2 - cloudH/2;
-        _cr.h = cloudH;
-        if (overlaps(br, _cr)) {
-          p.collected = true;
-          score++;
-          playKaching();
-          playSpecialSound(score);
-        }
+  // Collectible collision
+  for (const p of pipes) {
+    if (!p.collected) {
+      _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2;
+      _cr.y = (p.topH + p.botY)/2 - collectH/2;
+      _cr.h = collectH;
+      if (overlaps(br, _cr)) {
+        p.collected = true;
+        const pts = S_DOUBLE ? 2 : 1;
+        score       += pts;
+        playerCoins += pts;
+        playKaching();
+        playSpecialSound(score);
       }
     }
   }
 
   if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
   for (const p of pipes) {
-    _pr.x = p.x;
-    _pr.y = 0;      _pr.h = p.topH;
+    _pr.x = p.x; _pr.y = 0;      _pr.h = p.topH;
     if (overlaps(br, _pr)) { die(); return; }
     _pr.y = p.botY; _pr.h = GH - p.botY;
     if (overlaps(br, _pr)) { die(); return; }
@@ -307,17 +685,17 @@ function txt(str, x, y, font, color, align = 'center') {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align;
   ctx.fillText(str, x, y);
 }
-function overlay(a) { ctx.fillStyle=`rgba(0,0,0,${a})`; ctx.fillRect(0,0,GW,GH); }
+function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
 
 function drawPipe(p) {
-  const cx = p.x-10, cw = PIPE_WIDTH+20, ch = 28;
+  const bx = p.x-10, bw = PIPE_WIDTH+20, cap = 28;
   if (p.topH > 0) {
-    ctx.fillStyle='#22b422'; ctx.fillRect(p.x,0,PIPE_WIDTH,p.topH);
-    ctx.fillStyle='#127812'; ctx.fillRect(cx,p.topH-ch,cw,ch);
+    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
+    ctx.fillStyle = '#127812'; ctx.fillRect(bx, p.topH-cap, bw, cap);
   }
   if (p.botY < GH) {
-    ctx.fillStyle='#22b422'; ctx.fillRect(p.x,p.botY,PIPE_WIDTH,GH-p.botY);
-    ctx.fillStyle='#127812'; ctx.fillRect(cx,p.botY,cw,ch);
+    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH-p.botY);
+    ctx.fillStyle = '#127812'; ctx.fillRect(bx, p.botY, bw, cap);
   }
 }
 function drawBirdAt(x, y, angle) {
@@ -327,27 +705,34 @@ function drawBirdAt(x, y, angle) {
   if (playerCanvas)
     ctx.drawImage(playerCanvas, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
   else {
-    ctx.fillStyle='#ffd700';
-    ctx.beginPath(); ctx.arc(0,0,BIRD_SIZE/2-4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2-4, 0, Math.PI*2); ctx.fill();
+  }
+  // Red flash on extra-life use
+  const now = performance.now();
+  if (now < flashUntil && Math.floor(now/100) % 2 === 0) {
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#ff2222';
+    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
 
+function fmt(sec) {
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+
 function drawLeaderboard(y0) {
   txt('\uD83C\uDFC6 TOP 10', GW/2, y0, 'bold 15px Arial', '#ffd700');
-  if (leaderboardLoading) {
-    txt('Ładowanie wyników...', GW/2, y0+24, '14px Arial', '#888');
-    return;
-  }
-  if (!leaderboard.length) {
-    txt('Brak wyników', GW/2, y0+24, '14px Arial', '#888');
-    return;
-  }
+  if (leaderboardLoading) { txt('Ładowanie...', GW/2, y0+22, '13px Arial', '#888'); return; }
+  if (!leaderboard.length) { txt('Brak wyników', GW/2, y0+22, '13px Arial', '#888'); return; }
   leaderboard.forEach((e, i) => {
-    const ry = y0 + 22 + i * 23;
-    const isMe = e.nick === playerNick && e.score === score;
-    const color = isMe ? '#ffd700' : (i < 3 ? '#fff' : '#a0a0a0');
-    ctx.font = '14px Arial'; ctx.fillStyle = color;
+    const ry    = y0 + 20 + i * 22;
+    const isMe  = e.nick === playerNick;
+    const color = isMe ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
+    ctx.font = '13px Arial'; ctx.fillStyle = color;
     ctx.textAlign = 'left';  ctx.fillText(`${i+1}. ${e.nick}`, 22, ry);
     ctx.textAlign = 'right'; ctx.fillText(String(e.score), GW-22, ry);
   });
@@ -362,69 +747,77 @@ function drawWaiting() {
   if (Math.floor(performance.now()/600) % 2 === 0)
     txt('Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
 }
-
 function drawGameOver() {
   overlay(0.62);
   txt('GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232');
-  txt('Score: ' + score, GW/2, 108, 'bold 26px Arial', '#ffd700');
-  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(20, 122); ctx.lineTo(GW-20, 122); ctx.stroke();
+  txt('Score: '+score, GW/2, 108, 'bold 26px Arial', '#ffd700');
+  ctx.strokeStyle='#444'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(20,122); ctx.lineTo(GW-20,122); ctx.stroke();
   drawLeaderboard(138);
-  ctx.beginPath(); ctx.moveTo(20, 395); ctx.lineTo(GW-20, 395); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
   const rem = Math.max(0, 3-(performance.now()-gameOverAt)/1000).toFixed(1);
-  txt('Restart za ' + rem + 's  \u2022  Tap aby teraz', GW/2, 420, '16px Arial', '#888');
+  txt('Restart za '+rem+'s  •  Tap aby teraz', GW/2, 402, '15px Arial', '#888');
 }
-
 function drawYouLose() {
   overlay(0.72);
   txt('YOU LOSE \uD83D\uDE02', GW/2, 80, 'bold 48px Arial', '#dc3232');
-  txt('Score: ' + score, GW/2, 120, 'bold 26px Arial', '#ffd700');
-  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(20, 134); ctx.lineTo(GW-20, 134); ctx.stroke();
+  txt('Score: '+score, GW/2, 120, 'bold 26px Arial', '#ffd700');
+  ctx.strokeStyle='#444'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(20,134); ctx.lineTo(GW-20,134); ctx.stroke();
   drawLeaderboard(150);
-  txt('Odśwież aby zagrać ponownie', GW/2, 430, '18px Arial', '#a0a0a0');
+  txt('Tap → LOBBY', GW/2, 432, '18px Arial', '#a0a0a0');
 }
 
 // ── Main draw ─────────────────────────────────────────────────────────────────
 function draw() {
-  ctx.fillStyle = '#0f1432'; ctx.fillRect(0,0,GW,GH);
+  ctx.fillStyle = '#0f1432'; ctx.fillRect(0, 0, GW, GH);
   ctx.fillStyle = '#b4c8ff';
   for (const s of STARS) { ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }
 
   for (const p of pipes) {
     drawPipe(p);
-    if (cloudCanvas && !p.collected)
-      ctx.drawImage(cloudCanvas, p.x+PIPE_WIDTH/2-CLOUD_W/2,
-                    (p.topH+p.botY)/2-cloudH/2, CLOUD_W, cloudH);
+    if (collectCanvas && !p.collected)
+      ctx.drawImage(collectCanvas, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
   }
-  if (state !== 'waiting') {
+  if (state !== 'waiting')
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
+
+  // ── HUD ──────────────────────────────────────────────────────────────────
+  txt('Deaths:'+deathCount+'/'+DEATH_LIMIT, 8, 22, '15px Arial', '#909090', 'left');
+  txt(String(score), GW-8, 22, 'bold 28px Arial', '#fff', 'right');
+
+  // Timer (center, red when <30s)
+  if (state === 'playing' || state === 'gameover') {
+    const t = state === 'playing' ? timerRemaining : 0;
+    txt(fmt(t), GW/2, 22, 'bold 18px Arial', t < 30 ? '#dc3232' : '#ffd700');
   }
 
-  txt(String(score), GW-15, 40, 'bold 32px Arial', '#fff', 'right');
-  txt('Deaths: '+deathCount+'/10', 10, 36, '20px Arial', '#a0a0a0', 'left');
+  // Extra-life heart
+  if (S_EXTRA)
+    txt(extraLifeAvail ? '\u2665' : '\u2661', 8, 42, '15px Arial',
+        extraLifeAvail ? '#dc3232' : '#444', 'left');
+
+  // Coins
+  txt('\uD83C\uDFB5'+playerCoins, GW-8, 44, '13px Arial', '#ffd700', 'right');
 
   if      (state === 'waiting')  drawWaiting();
   else if (state === 'gameover') drawGameOver();
   else if (state === 'youlose')  drawYouLose();
 }
 
-// ── Input (tylko canvas — popup jest poza drzewem canvas) ─────────────────────
+// ── Input ─────────────────────────────────────────────────────────────────────
 function onAction() {
-  if (state === 'youlose')   return;
-  if (state === 'waiting')   { startGame(); return; }
-  if (state === 'playing')   { bird.jump(); return; }
-  if (state === 'gameover')  { resetGame(); return; }
+  if (state === 'youlose')  { returnToLobby(); return; }
+  if (state === 'waiting')  { startGame(); return; }
+  if (state === 'playing')  { bird.jump(); return; }
+  if (state === 'gameover') { resetGame(); return; }
 }
-
-document.addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); onAction(); }
-});
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); onAction(); } });
 canvas.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
 
-// ── Loop — uruchamiany dopiero po wpisaniu nicku ───────────────────────────────
-let lastTime = 0;
+// ── Game loop (starts once, runs forever) ─────────────────────────────────────
+let lastTime = 0, loopRunning = false;
 function loop(now) {
   const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
   lastTime = now;
@@ -432,7 +825,12 @@ function loop(now) {
   draw();
   requestAnimationFrame(loop);
 }
-// Pętla NIE jest uruchamiana tutaj — startuje w submitNick()
+function startGameLoop() {
+  if (loopRunning) return;
+  loopRunning = true;
+  lastTime = 0;
+  requestAnimationFrame(loop);
+}
 </script>
 </body>
 </html>
