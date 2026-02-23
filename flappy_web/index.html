@@ -26,27 +26,30 @@
       background: #1a2060;
       border: 2px solid #ffd700;
       border-radius: 14px;
-      padding: 36px 44px;
+      padding: 32px 24px;
       text-align: center;
       color: #fff;
-      min-width: 280px;
+      width: min(340px, 90vw);
     }
     .popup-box h2 { color: #ffd700; font-size: 2rem; margin-bottom: 8px; }
     .popup-box p  { color: #ccc; font-size: .95rem; margin-bottom: 14px; }
     #nick-input {
       display: block; margin: 0 auto 18px;
-      width: 210px; padding: 10px;
-      font-size: 1.1rem;
+      width: 80%; height: 60px; padding: 0 14px;
+      font-size: 16px;                /* 16px zapobiega auto-zoomowi na iOS */
       border: 2px solid #ffd700; border-radius: 7px;
       background: #0f1432; color: #fff;
       text-align: center; outline: none;
     }
     #nick-input.error { border-color: #dc3232; }
     #nick-start {
+      display: block; margin: 0 auto;
+      width: 80%; min-height: 60px;
       background: #ffd700; color: #0f1432;
-      border: none; padding: 12px 34px;
-      font-size: 1.1rem; font-weight: bold;
+      border: none; padding: 0 24px;
+      font-size: 1.3rem; font-weight: bold;
       border-radius: 7px; cursor: pointer;
+      touch-action: manipulation;      /* eliminuje 300ms delay na iOS */
       transition: background .15s;
     }
     #nick-start:hover { background: #ffe84a; }
@@ -60,7 +63,8 @@
   <div class="popup-box">
     <h2>🐦 Bobby Bird</h2>
     <p>Wpisz swój nick:</p>
-    <input id="nick-input" type="text" maxlength="16" placeholder="Twój nick" autocomplete="off" />
+    <input id="nick-input" type="text" maxlength="16" placeholder="Twój nick"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
     <button id="nick-start">▶ START</button>
     <p class="popup-note">Wyniki trafią do globalnego rankingu</p>
   </div>
