@@ -193,7 +193,7 @@ const db  = getFirestore(app);
 
 // ── Character definitions ─────────────────────────────────────────────────────
 const CHARACTERS = {
-  bobby:    { name:'Bobby',     img:'bobby.jpg',    price:0,   col:'soundcloud.jpg',
+  bobby:    { name:'Bobby',     img:'bobby.png',    price:0,   col:'soundcloud.png',
               bonuses:[],                         desc:'brak bonusów' },
   bialek:   { name:'Bialek',    img:'bialek.png',   price:30,  col:'nina.png',
               bonuses:['gap+20'],                 desc:'+szerszy przelot' },
@@ -291,31 +291,43 @@ const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
 const PIPE_GAP = 175, PIPE_WIDTH = 72, PIPE_INTERVAL = 1750;
 const BIRD_SIZE = 60, COL_W = 70;
 
-// ── Stars ─────────────────────────────────────────────────────────────────────
+// ── Pre-rendered background (stars) ───────────────────────────────────────────
 const STARS = Array.from({ length: 25 }, () => ({
   x: Math.random() * GW, y: Math.random() * GH * 0.75,
   r: Math.random() < 0.3 ? 1.5 : 1
 }));
+const bgCacheCanvas = document.createElement('canvas');
+const bgCtx = bgCacheCanvas.getContext('2d');
+function renderBackgroundToCache() {
+  bgCacheCanvas.width = GW; bgCacheCanvas.height = GH;
+  bgCtx.fillStyle = '#0f1432';
+  bgCtx.fillRect(0, 0, GW, GH);
+  bgCtx.fillStyle = '#b4c8ff';
+  for (const s of STARS) { bgCtx.beginPath(); bgCtx.arc(s.x, s.y, s.r, 0, Math.PI*2); bgCtx.fill(); }
+}
+renderBackgroundToCache();
 
 // ── Audio (sounds in assets/sounds/) ─────────────────────────────────────────
 const bgMusic     = new Audio('assets/sounds/music.mp3');
 bgMusic.loop = true; bgMusic.volume = 0.3;
 
-const kachingAudio  = new Audio('assets/sounds/kaching.wav'); kachingAudio.volume  = 0.5;
-const mumiaAudio    = new Audio('assets/sounds/mumia.mp3');   mumiaAudio.volume    = 1.0;
-const dzwiek7Audio  = new Audio('assets/sounds/7.mp3');       dzwiek7Audio.volume  = 1.0;
-const krystianAudio = new Audio('assets/sounds/krystian.mp3');krystianAudio.volume = 1.0;
+function makePool(src, vol, size) {
+  const pool = Array.from({ length: size }, () => { const a = new Audio(src); a.volume = vol; return a; });
+  let idx = 0;
+  return () => { const s = pool[idx]; s.currentTime = 0; s.play().catch(() => {}); idx = (idx + 1) % pool.length; };
+}
+const playKaching  = makePool('assets/sounds/kaching.wav',  0.5, 5);
+const playMumia    = makePool('assets/sounds/mumia.mp3',    1.0, 2);
+const playDzwiek7  = makePool('assets/sounds/7.mp3',        1.0, 2);
+const playKrystian = makePool('assets/sounds/krystian.mp3', 1.0, 2);
 
 function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(e => console.warn('music blocked:', e)); }
 function stopMusic()  { bgMusic.pause(); }
-function playKaching() { const s = kachingAudio.cloneNode(); s.volume = 0.5; s.play().catch(() => {}); }
 function playSpecialSound(sc) {
   if (sc <= 0) return;
-  let snd = null;
-  if      (sc % 100 === 0) snd = krystianAudio;
-  else if (sc % 10  === 0) snd = mumiaAudio;
-  else if (sc % 10  === 7) snd = dzwiek7Audio;
-  if (snd) { snd.currentTime = 0; snd.play().catch(() => {}); }
+  if      (sc % 100 === 0) playKrystian();
+  else if (sc % 10  === 0) playMumia();
+  else if (sc % 10  === 7) playDzwiek7();
 }
 
 // ── Image helpers ─────────────────────────────────────────────────────────────
@@ -328,52 +340,37 @@ function loadImage(src) {
     img.src = src;
   });
 }
-function removeWhiteBg(img, w, h) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const cx = c.getContext('2d');
-  cx.drawImage(img, 0, 0, w, h);
-  try {
-    const id = cx.getImageData(0, 0, w, h), d = id.data;
-    for (let i = 0; i < d.length; i += 4)
-      if (d[i] >= 200 && d[i+1] >= 200 && d[i+2] >= 200) d[i+3] = 0;
-    cx.putImageData(id, 0, 0);
-  } catch(_) {}
-  return c;
-}
-
 // Per-skin caches
-const spriteCache     = {}; // key → offscreen canvas
-const collectCache    = {}; // key → { canvas, h }
+const spriteCache     = {}; // key → Image
+const collectCache    = {}; // key → { img, h }
 
 async function ensureSprite(key) {
   if (spriteCache[key] !== undefined) return;
-  const img = await loadImage(`assets/characters/${CHARACTERS[key].img}`);
-  spriteCache[key] = img ? removeWhiteBg(img, img.naturalWidth, img.naturalHeight) : null;
+  spriteCache[key] = await loadImage(`assets/characters/${CHARACTERS[key].img}`);
 }
 async function ensureCollectible(key) {
   if (collectCache[key] !== undefined) return;
   const img = await loadImage(`assets/collectibles/${CHARACTERS[key].col}`);
   if (img) {
     const h = Math.max(1, Math.round(img.naturalHeight * COL_W / img.naturalWidth));
-    collectCache[key] = { canvas: removeWhiteBg(img, COL_W, h), h };
+    collectCache[key] = { img, h };
   } else {
     collectCache[key] = null;
   }
 }
 
 // Active skin assets (set in applyActiveSkin)
-let playerCanvas    = null;
-let collectCanvas   = null;
+let playerImg       = null;
+let collectImg      = null;
 let collectH        = COL_W;
 
 async function applyActiveSkin(key) {
   await ensureSprite(key);
   await ensureCollectible(key);
-  playerCanvas  = spriteCache[key] || null;
+  playerImg   = spriteCache[key] || null;
   const c = collectCache[key];
-  collectCanvas = c ? c.canvas : null;
-  collectH      = c ? c.h     : COL_W;
+  collectImg  = c ? c.img : null;
+  collectH    = c ? c.h   : COL_W;
 }
 
 // ── Player state ──────────────────────────────────────────────────────────────
@@ -696,11 +693,12 @@ function update(dt) {
   }
 
   const f = dt / 16.667;
-  for (const p of pipes) {
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    const p = pipes[i];
     p.x -= S_SPEED * f;
     if (!p.passed && p.x + PIPE_WIDTH < bird.x) p.passed = true;
+    if (p.x + PIPE_WIDTH <= 0) pipes.splice(i, 1);
   }
-  pipes = pipes.filter(p => p.x + PIPE_WIDTH > 0);
 
   const br = bird.rect();
 
@@ -752,11 +750,8 @@ function drawBirdAt(x, y, angle) {
   ctx.save();
   ctx.translate(x + BIRD_SIZE/2, y + BIRD_SIZE/2);
   ctx.rotate(angle * Math.PI / 180);
-  // Golden outline
-  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
-  ctx.strokeRect(-BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
-  if (playerCanvas)
-    ctx.drawImage(playerCanvas, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
+  if (playerImg)
+    ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
   else {
     ctx.fillStyle = '#ffd700';
     ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2-4, 0, Math.PI*2); ctx.fill();
@@ -819,14 +814,12 @@ function drawGameOver() {
 }
 // ── Main draw ─────────────────────────────────────────────────────────────────
 function draw() {
-  ctx.fillStyle = '#0f1432'; ctx.fillRect(0, 0, GW, GH);
-  ctx.fillStyle = '#b4c8ff';
-  for (const s of STARS) { ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }
+  ctx.drawImage(bgCacheCanvas, 0, 0);
 
   for (const p of pipes) {
     drawPipe(p);
-    if (collectCanvas && !p.collected)
-      ctx.drawImage(collectCanvas, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
+    if (collectImg && !p.collected)
+      ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
   }
   if (state !== 'waiting')
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
