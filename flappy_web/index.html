@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Bobby Bird</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #0f1432;
+      display: flex; justify-content: center; align-items: center;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+'use strict';
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('game');
+const ctx    = canvas.getContext('2d');
+const GW = 400, GH = 600;
+canvas.width  = GW;
+canvas.height = GH;
+
+function resize() {
+  const s = Math.min(window.innerWidth / GW, window.innerHeight / GH);
+  canvas.style.width  = (GW * s) + 'px';
+  canvas.style.height = (GH * s) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const GRAVITY       = 0.45;
+const JUMP_FORCE    = -9.5;
+const PIPE_SPEED    = 2.55;
+const PIPE_GAP      = 175;
+const PIPE_WIDTH    = 72;
+const PIPE_INTERVAL = 1750;
+const BIRD_SIZE     = 60;
+const CLOUD_W       = 70;
+const DEATH_LIMIT   = 10;
+
+// ── Stars ─────────────────────────────────────────────────────────────────────
+const STARS = Array.from({ length: 25 }, () => ({
+  x: Math.random() * GW,
+  y: Math.random() * GH * 0.75,
+  r: Math.random() < 0.3 ? 1.5 : 1
+}));
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const bgMusic       = new Audio('assets/music.mp3');
+bgMusic.loop        = true;
+bgMusic.volume      = 0.45;
+const kachingAudio  = new Audio('assets/kaching.wav');
+kachingAudio.volume = 0.7;
+
+function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(() => {}); }
+function stopMusic()  { bgMusic.pause(); }
+function playKaching() {
+  const s = kachingAudio.cloneNode();
+  s.volume = 0.7;
+  s.play().catch(() => {});
+}
+
+// ── Image loading + white-bg removal ─────────────────────────────────────────
+let playerCanvas = null;
+let cloudCanvas  = null;
+let cloudH       = CLOUD_W;
+
+function removeWhiteBg(img, w, h) {
+  const c  = document.createElement('canvas');
+  c.width  = w; c.height = h;
+  const cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0, w, h);
+  try {
+    const id = cx.getImageData(0, 0, w, h), d = id.data;
+    for (let i = 0; i < d.length; i += 4)
+      if (d[i] >= 200 && d[i+1] >= 200 && d[i+2] >= 200) d[i+3] = 0;
+    cx.putImageData(id, 0, 0);
+  } catch (_) { /* CORS on local file:// — use as-is */ }
+  return c;
+}
+
+function loadImages() {
+  return new Promise(resolve => {
+    let pending = 2;
+    const done = () => { if (--pending === 0) resolve(); };
+
+    const pi = new Image();
+    pi.crossOrigin = 'anonymous';
+    pi.onload  = () => { playerCanvas = removeWhiteBg(pi, pi.naturalWidth, pi.naturalHeight); done(); };
+    pi.onerror = done;
+    pi.src = 'assets/player.jpg';
+
+    const ci = new Image();
+    ci.crossOrigin = 'anonymous';
+    ci.onload = () => {
+      const scale = CLOUD_W / ci.naturalWidth;
+      cloudH = Math.max(1, Math.round(ci.naturalHeight * scale));
+      cloudCanvas = removeWhiteBg(ci, CLOUD_W, cloudH);
+      done();
+    };
+    ci.onerror = done;
+    ci.src = 'assets/score.jpg';
+  });
+}
+
+// ── Game state ────────────────────────────────────────────────────────────────
+// states: 'waiting' | 'playing' | 'gameover' | 'youlose'
+let state      = 'waiting';
+let deathCount = 0;   // survives restarts, resets only on page refresh
+let score      = 0;
+let pipes      = [];
+let pipeTimer  = 0;
+let gameOverAt = 0;
+
+const bird = {
+  x: 80, y: GH / 2, vy: 0,
+  jump()    { this.vy = JUMP_FORCE; },
+  update(dt) {
+    const f = dt / 16.667;
+    this.vy += GRAVITY * f;
+    this.y  += this.vy  * f;
+  },
+  rect() {
+    const m = 8;
+    return { x: this.x + m, y: this.y + m, w: BIRD_SIZE - m*2, h: BIRD_SIZE - m*2 };
+  }
+};
+
+function spawnPipe() {
+  const gc = GH/4 + Math.random() * (GH/2);
+  pipes.push({ x: GW, topH: gc - PIPE_GAP/2, botY: gc + PIPE_GAP/2,
+               passed: false, collected: false });
+}
+
+function resetGame() {
+  bird.x = 80; bird.y = GH/2; bird.vy = 0;
+  pipes = []; pipeTimer = 0; score = 0;
+  stopMusic();
+  state = 'waiting';
+}
+
+function startGame() {
+  state = 'playing';
+  bird.jump();
+  startMusic();
+}
+
+function die() {
+  deathCount++;
+  stopMusic();
+  gameOverAt = performance.now();
+  state = deathCount >= DEATH_LIMIT ? 'youlose' : 'gameover';
+}
+
+function overlaps(a, b) {
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+// ── Update ────────────────────────────────────────────────────────────────────
+function update(dt) {
+  if (state === 'gameover') {
+    if ((performance.now() - gameOverAt) / 1000 >= 3) resetGame();
+    return;
+  }
+  if (state !== 'playing') return;
+
+  bird.update(dt);
+
+  // Spawn pipes
+  pipeTimer += dt;
+  if (pipeTimer >= PIPE_INTERVAL) { spawnPipe(); pipeTimer = 0; }
+
+  // Move & cull pipes
+  const f = dt / 16.667;
+  for (const p of pipes) {
+    p.x -= PIPE_SPEED * f;
+    if (!p.passed && p.x + PIPE_WIDTH < bird.x) p.passed = true;
+  }
+  pipes = pipes.filter(p => p.x + PIPE_WIDTH > 0);
+
+  const br = bird.rect();
+
+  // Cloud collection
+  if (cloudCanvas) {
+    for (const p of pipes) {
+      if (!p.collected) {
+        const cr = {
+          x: p.x + PIPE_WIDTH/2 - CLOUD_W/2,
+          y: (p.topH + p.botY)/2 - cloudH/2,
+          w: CLOUD_W, h: cloudH
+        };
+        if (overlaps(br, cr)) {
+          p.collected = true;
+          score++;
+          playKaching();
+        }
+      }
+    }
+  }
+
+  // Ceiling / floor
+  if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
+
+  // Pipe collision
+  for (const p of pipes) {
+    if (overlaps(br, { x: p.x, y: 0,     w: PIPE_WIDTH, h: p.topH       }) ||
+        overlaps(br, { x: p.x, y: p.botY, w: PIPE_WIDTH, h: GH - p.botY })) {
+      die(); return;
+    }
+  }
+}
+
+// ── Draw helpers ──────────────────────────────────────────────────────────────
+function text(str, x, y, font, color, align = 'center') {
+  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align;
+  ctx.fillText(str, x, y);
+}
+
+function overlay(alpha) {
+  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+  ctx.fillRect(0, 0, GW, GH);
+}
+
+function drawPipe(p) {
+  const cx = p.x - 10, cw = PIPE_WIDTH + 20, ch = 28;
+  if (p.topH > 0) {
+    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
+    ctx.fillStyle = '#127812'; ctx.fillRect(cx, p.topH - ch, cw, ch);
+  }
+  if (p.botY < GH) {
+    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
+    ctx.fillStyle = '#127812'; ctx.fillRect(cx, p.botY, cw, ch);
+  }
+}
+
+function drawBird(x, y, angle) {
+  const cx = x + BIRD_SIZE/2, cy = y + BIRD_SIZE/2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle * Math.PI / 180);
+  if (playerCanvas) {
+    ctx.drawImage(playerCanvas, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
+  } else {
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2 - 4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+function drawWaiting() {
+  overlay(0.35);
+  text('Bobby Bird', GW/2, GH/4 + 10, 'bold 52px Arial', '#ffd700');
+  const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now() / 333) * 12;
+  drawBird(GW/2 - BIRD_SIZE/2, hy, 0);
+  if (Math.floor(performance.now() / 600) % 2 === 0)
+    text('Tap or press SPACE to start', GW/2, GH*2/3 + 10, 'bold 21px Arial', '#ffffff');
+}
+
+function drawGameOver() {
+  overlay(0.55);
+  text('GAME OVER', GW/2, GH/2 - 60, 'bold 52px Arial', '#dc3232');
+  text('Score: ' + score, GW/2, GH/2, 'bold 34px Arial', '#ffd700');
+  const rem = Math.max(0, 3 - (performance.now() - gameOverAt) / 1000).toFixed(1);
+  text('Restarting in ' + rem + 's  \u2022  Tap to restart', GW/2, GH/2 + 60, '20px Arial', '#a0a0a0');
+}
+
+function drawYouLose() {
+  overlay(0.72);
+  text('YOU LOSE \uD83D\uDE02', GW/2, GH/2 - 50, 'bold 52px Arial', '#dc3232');
+  text('Score: ' + score, GW/2, GH/2 + 20, 'bold 30px Arial', '#ffd700');
+  text('Refresh to play again', GW/2, GH/2 + 70, '22px Arial', '#a0a0a0');
+}
+
+// ── Main draw ─────────────────────────────────────────────────────────────────
+function draw() {
+  // Background
+  ctx.fillStyle = '#0f1432';
+  ctx.fillRect(0, 0, GW, GH);
+
+  // Stars
+  ctx.fillStyle = '#b4c8ff';
+  for (const s of STARS) {
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Pipes + clouds
+  for (const p of pipes) {
+    drawPipe(p);
+    if (cloudCanvas && !p.collected) {
+      ctx.drawImage(cloudCanvas,
+        p.x + PIPE_WIDTH/2 - CLOUD_W/2,
+        (p.topH + p.botY)/2 - cloudH/2,
+        CLOUD_W, cloudH);
+    }
+  }
+
+  // Bird (only while not on start screen — waiting draws its own hovering bird)
+  if (state !== 'waiting') {
+    const angle = Math.max(-35, Math.min(50, -bird.vy * 3));
+    drawBird(bird.x, bird.y, angle);
+  }
+
+  // HUD
+  text(String(score), GW - 15, 40, 'bold 32px Arial', '#ffffff', 'right');
+  text('Deaths: ' + deathCount + '/10', 10, 36, '20px Arial', '#a0a0a0', 'left');
+
+  // State overlay
+  if      (state === 'waiting')  drawWaiting();
+  else if (state === 'gameover') drawGameOver();
+  else if (state === 'youlose')  drawYouLose();
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+function onAction() {
+  if (state === 'youlose')  return;           // must refresh
+  if (state === 'waiting')  { startGame(); return; }
+  if (state === 'playing')  { bird.jump(); return; }
+  if (state === 'gameover') { resetGame(); return; }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); onAction(); }
+});
+document.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
+document.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
+
+// ── Loop ──────────────────────────────────────────────────────────────────────
+let lastTime = 0;
+function loop(now) {
+  const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loadImages().then(() => requestAnimationFrame(loop));
+</script>
+</body>
+</html>
