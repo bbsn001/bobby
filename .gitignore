@@ -1,0 +1,17 @@
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Release folder (built locally)
+release/
+
+# Prank build artifacts
+prank/build/
+prank/dist/
+flappy_prank/build/
+flappy_prank/dist/
