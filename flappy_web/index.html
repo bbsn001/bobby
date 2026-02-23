@@ -11,8 +11,15 @@
       background: #0a0a2e;
       font-family: Arial, sans-serif;
       overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
     }
-    canvas { display: block; touch-action: none; user-select: none; }
+    canvas {
+      display: block; touch-action: none; user-select: none;
+      will-change: transform; transform: translateZ(0);
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
 
     /* ── Shared screen ───────────────────────────────────────────────────── */
     .screen {
@@ -68,18 +75,6 @@
     .char-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; background: #0f1432; }
     .cp-name  { color: #fff; font-weight: bold; font-size: .9rem; }
     .cp-bonus { color: #8be; font-size: .72rem; margin-top: 2px; }
-
-    /* ── Timer selector ─────────────────────────────────────────────────── */
-    .timer-label { color: #aaa; font-size: .82rem; margin-bottom: 8px; }
-    .timer-row   { display: flex; gap: 10px; margin-bottom: 22px; }
-    .timer-btn {
-      flex: 1; max-width: 90px; height: 46px;
-      background: #131340; color: #aaa;
-      border: 2px solid #2a2a6a; border-radius: 8px;
-      font-size: .95rem; font-weight: bold; cursor: pointer;
-      touch-action: manipulation; transition: all .12s;
-    }
-    .timer-btn.active { background: #ffd700; color: #0f1432; border-color: #ffd700; }
 
     /* ── Shop ───────────────────────────────────────────────────────────── */
     .shop-header {
@@ -159,13 +154,6 @@
              -webkit-overflow-scrolling:touch">
     </div>
 
-    <div class="timer-label">Czas rundy:</div>
-    <div class="timer-row">
-      <button class="timer-btn active" data-sec="180">3 min</button>
-      <button class="timer-btn"        data-sec="300">5 min</button>
-      <button class="timer-btn"        data-sec="600">10 min</button>
-    </div>
-
     <button id="lobbyPlay" class="btn btn-yellow">▶ GRAJ</button>
     <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
   </div>
@@ -183,7 +171,7 @@
 </div>
 
 <!-- ── Game canvas (hidden until game starts) ───────────────────────────── -->
-<canvas id="gameCanvas" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%)"></canvas>
+<canvas id="gameCanvas" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) translateZ(0)"></canvas>
 
 <script type="module">
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -406,11 +394,6 @@ function computeSessionParams() {
   S_EXTRA  = b.includes('extralife');
 }
 
-// ── Timer ─────────────────────────────────────────────────────────────────────
-let selectedTimer  = 180;
-let roundStartTime = 0;
-let timerRemaining = 180;
-
 // ── Extra life ────────────────────────────────────────────────────────────────
 let extraLifeAvail = false;
 let flashUntil     = 0;
@@ -535,16 +518,6 @@ function renderCharPicker() {
   });
 }
 
-document.querySelectorAll('.timer-btn').forEach(btn => {
-  function pick() {
-    document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedTimer = parseInt(btn.dataset.sec);
-  }
-  btn.addEventListener('click',    pick);
-  btn.addEventListener('touchend', e => { e.preventDefault(); pick(); });
-});
-
 let lobbyPlayGuard = false;
 async function onLobbyPlay() {
   if (lobbyPlayGuard) return;
@@ -624,7 +597,7 @@ function renderShop() {
       } else {
         if (playerCoins < ch.price) { console.warn('[Shop] not enough coins'); guard = false; return; }
         playerCoins   -= ch.price;
-        unlockedSkins  = [...unlockedSkins, key];
+        unlockedSkins.push(key);
         activeSkin     = key;
         await applyActiveSkin(key);
         await saveProgress();
@@ -647,6 +620,10 @@ let pipes      = [];
 let pipeTimer  = 0;
 let gameOverAt = 0;
 let leaderboard = [], leaderboardLoading = false;
+
+// HUD text cache — avoid per-frame string concatenation
+let _hud_coins = -1, _hud_coinsStr = '';
+let _hud_score = -1, _hud_scoreStr = '';
 
 const bird = {
   x: 80, y: GH / 2, vy: 0,
@@ -678,16 +655,8 @@ function resetGame() {   // within-session reset (after regular game over)
 function startGame() {
   state = 'playing';
   bird.jump();
-  roundStartTime = performance.now();
-  timerRemaining = selectedTimer;
   startMusic();
 }
-function returnToLobby() {
-  stopMusic();
-  lobbyPlayGuard = false;
-  showLobby();
-}
-
 async function die() {
   // Extra life shield
   if (extraLifeAvail) {
@@ -705,19 +674,6 @@ async function die() {
   leaderboardLoading = false;
 }
 
-// Koniec czasu → youlose → lobby
-function timeUp() {
-  timerRemaining = 0;
-  stopMusic();
-  gameOverAt = performance.now();
-  state = 'youlose';
-  leaderboardLoading = true;
-  leaderboard = [];
-  saveScoreAndProgress(score)
-    .then(() => getTopScores())
-    .then(lb => { leaderboard = lb; leaderboardLoading = false; });
-}
-
 function overlaps(a, b) {
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 }
@@ -729,10 +685,6 @@ function update(dt) {
     return;
   }
   if (state !== 'playing') return;
-
-  // Timer
-  timerRemaining = selectedTimer - (performance.now() - roundStartTime) / 1000;
-  if (timerRemaining <= 0) { timeUp(); return; }
 
   bird.update(dt);
 
@@ -817,11 +769,6 @@ function drawBirdAt(x, y, angle) {
   ctx.restore();
 }
 
-function fmt(sec) {
-  const m = Math.floor(sec/60), s = Math.floor(sec%60);
-  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-}
-
 function drawLeaderboard(y0) {
   txt('\uD83C\uDFC6 TOP 10', GW/2, y0, 'bold 15px Arial', '#ffd700');
   if (leaderboardLoading) { txt('Ładowanie...', GW/2, y0+22, '13px Arial', '#888'); return; }
@@ -867,16 +814,6 @@ function drawGameOver() {
   const rem = Math.max(0, 3-(performance.now()-gameOverAt)/1000).toFixed(1);
   txt('Restart za '+rem+'s  •  Tap aby teraz', GW/2, 402, '15px Arial', '#888');
 }
-function drawYouLose() {
-  overlay(0.72);
-  txt('YOU LOSE \uD83D\uDE02', GW/2, 80, 'bold 48px Arial', '#dc3232');
-  txt('Score: '+score, GW/2, 120, 'bold 26px Arial', '#ffd700');
-  ctx.strokeStyle='#444'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(20,134); ctx.lineTo(GW-20,134); ctx.stroke();
-  drawLeaderboard(150);
-  txt('Tap → LOBBY', GW/2, 432, '18px Arial', '#a0a0a0');
-}
-
 // ── Main draw ─────────────────────────────────────────────────────────────────
 function draw() {
   ctx.fillStyle = '#0f1432'; ctx.fillRect(0, 0, GW, GH);
@@ -891,14 +828,11 @@ function draw() {
   if (state !== 'waiting')
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
 
-  // ── HUD ──────────────────────────────────────────────────────────────────
-  txt('\uD83C\uDFB5'+playerCoins, 8, 22, '15px Arial', '#ffd700', 'left');  // coins — lewy górny
-  txt(String(score), GW-8, 22, 'bold 28px Arial', '#fff', 'right');
-
-  // Timer (center, red when <30s)
-  if (state === 'playing') {
-    txt(fmt(timerRemaining), GW/2, 22, 'bold 18px Arial', timerRemaining < 30 ? '#dc3232' : '#ffd700');
-  }
+  // ── HUD (cached strings to avoid per-frame concatenation) ────────────────
+  if (_hud_coins !== playerCoins) { _hud_coins = playerCoins; _hud_coinsStr = '\uD83C\uDFB5' + playerCoins; }
+  if (_hud_score !== score)       { _hud_score = score;       _hud_scoreStr = String(score); }
+  txt(_hud_coinsStr, 8, 22, '15px Arial', '#ffd700', 'left');
+  txt(_hud_scoreStr, GW-8, 22, 'bold 28px Arial', '#fff', 'right');
 
   // Extra-life heart (pod coinami)
   if (S_EXTRA)
@@ -907,7 +841,6 @@ function draw() {
 
   if      (state === 'waiting')  drawWaiting();
   else if (state === 'gameover') drawGameOver();
-  else if (state === 'youlose')  drawYouLose();
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
@@ -926,7 +859,6 @@ function onAction(px, py) {
   if (state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
     showShopFromWaiting(); return;
   }
-  if (state === 'youlose')  { returnToLobby(); return; }
   if (state === 'waiting')  { startGame(); return; }
   if (state === 'playing')  { bird.jump(); return; }
   if (state === 'gameover') { resetGame(); return; }
@@ -957,6 +889,9 @@ function startGameLoop() {
   lastTime = 0;
   requestAnimationFrame(loop);
 }
+
+// ── Visibility change — reset delta time after tab switch ─────────────────────
+document.addEventListener('visibilitychange', () => { lastTime = 0; });
 </script>
 </body>
 </html>
