@@ -10,24 +10,100 @@
       width: 100%; height: 100%;
       background: #0f1432;
       display: flex; justify-content: center; align-items: center;
-      overflow: hidden;
-      touch-action: none;
-      user-select: none;
+      overflow: hidden; touch-action: none; user-select: none;
+      font-family: Arial, sans-serif;
     }
     canvas { display: block; }
+
+    /* ── Nick popup ─────────────────────────────────────────────────────── */
+    #nick-popup {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      display: flex; justify-content: center; align-items: center;
+      z-index: 100;
+    }
+    .popup-box {
+      background: #1a2060;
+      border: 2px solid #ffd700;
+      border-radius: 14px;
+      padding: 36px 44px;
+      text-align: center;
+      color: #fff;
+      min-width: 280px;
+    }
+    .popup-box h2 { color: #ffd700; font-size: 2rem; margin-bottom: 8px; }
+    .popup-box p  { color: #ccc; font-size: .95rem; margin-bottom: 14px; }
+    #nick-input {
+      display: block; margin: 0 auto 18px;
+      width: 210px; padding: 10px;
+      font-size: 1.1rem;
+      border: 2px solid #ffd700; border-radius: 7px;
+      background: #0f1432; color: #fff;
+      text-align: center; outline: none;
+    }
+    #nick-input.error { border-color: #dc3232; }
+    #nick-start {
+      background: #ffd700; color: #0f1432;
+      border: none; padding: 12px 34px;
+      font-size: 1.1rem; font-weight: bold;
+      border-radius: 7px; cursor: pointer;
+      transition: background .15s;
+    }
+    #nick-start:hover { background: #ffe84a; }
+    .popup-note { margin-top: 14px; font-size: .78rem; color: #888; }
   </style>
 </head>
 <body>
+
+<!-- Nick popup -->
+<div id="nick-popup">
+  <div class="popup-box">
+    <h2>🐦 Bobby Bird</h2>
+    <p>Wpisz swój nick:</p>
+    <input id="nick-input" type="text" maxlength="16" placeholder="Twój nick" autocomplete="off" />
+    <button id="nick-start">▶ START</button>
+    <p class="popup-note">Wyniki trafią do globalnego rankingu</p>
+  </div>
+</div>
+
 <canvas id="game"></canvas>
-<script>
-'use strict';
+
+<script type="module">
+// ── Firebase ──────────────────────────────────────────────────────────────────
+import { initializeApp }                              from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, addDoc,
+         getDocs, query, orderBy, limit }             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCv02h10zIVw8DhrBhryiDnFIa_peZklKQ",
+  authDomain:        "flappy-bobby.firebaseapp.com",
+  projectId:         "flappy-bobby",
+  storageBucket:     "flappy-bobby.firebasestorage.app",
+  messagingSenderId: "79131027037",
+  appId:             "1:79131027037:web:2224f6d16ef4f7e6a88fb4"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+async function saveScore(nick, score) {
+  try {
+    await addDoc(collection(db, 'leaderboard'), { nick, score, date: new Date() });
+  } catch(e) { console.warn('Firestore save:', e); }
+}
+async function getTopScores() {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'leaderboard'), orderBy('score', 'desc'), limit(10))
+    );
+    return snap.docs.map(d => d.data());
+  } catch(e) { console.warn('Firestore fetch:', e); return []; }
+}
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('game');
 const ctx    = canvas.getContext('2d');
 const GW = 400, GH = 600;
-canvas.width  = GW;
-canvas.height = GH;
+canvas.width = GW; canvas.height = GH;
 
 function resize() {
   const s = Math.min(window.innerWidth / GW, window.innerHeight / GH);
@@ -38,46 +114,49 @@ window.addEventListener('resize', resize);
 resize();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const GRAVITY       = 0.45;
-const JUMP_FORCE    = -9.5;
-const PIPE_SPEED    = 2.55;
-const PIPE_GAP      = 175;
-const PIPE_WIDTH    = 72;
-const PIPE_INTERVAL = 1750;
-const BIRD_SIZE     = 60;
-const CLOUD_W       = 70;
-const DEATH_LIMIT   = 10;
+const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
+const PIPE_GAP = 175, PIPE_WIDTH = 72, PIPE_INTERVAL = 1750;
+const BIRD_SIZE = 60, CLOUD_W = 70, DEATH_LIMIT = 10;
 
 // ── Stars ─────────────────────────────────────────────────────────────────────
 const STARS = Array.from({ length: 25 }, () => ({
-  x: Math.random() * GW,
-  y: Math.random() * GH * 0.75,
+  x: Math.random() * GW, y: Math.random() * GH * 0.75,
   r: Math.random() < 0.3 ? 1.5 : 1
 }));
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
-const bgMusic       = new Audio('assets/music.mp3');
-bgMusic.loop        = true;
-bgMusic.volume      = 0.45;
+const bgMusic = new Audio('assets/music.mp3');
+bgMusic.loop = true; bgMusic.volume = 0.3;          // ← 30%
+
 const kachingAudio  = new Audio('assets/kaching.wav');
-kachingAudio.volume = 0.7;
+kachingAudio.volume = 0.5;                           // ← 50%
+
+const mumiaAudio    = new Audio('assets/mumia.mp3');    mumiaAudio.volume    = 1.0;
+const dzwiek7Audio  = new Audio('assets/7.mp3');        dzwiek7Audio.volume  = 1.0;
+const krystianAudio = new Audio('assets/krystian.mp3'); krystianAudio.volume = 1.0;
 
 function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(() => {}); }
 function stopMusic()  { bgMusic.pause(); }
+
 function playKaching() {
-  const s = kachingAudio.cloneNode();
-  s.volume = 0.7;
-  s.play().catch(() => {});
+  const s = kachingAudio.cloneNode(); s.volume = 0.5; s.play().catch(() => {});
 }
 
-// ── Image loading + white-bg removal ─────────────────────────────────────────
-let playerCanvas = null;
-let cloudCanvas  = null;
-let cloudH       = CLOUD_W;
+function playSpecialSound(sc) {
+  if (sc <= 0) return;
+  let snd = null;
+  if      (sc % 100 === 0) snd = krystianAudio;   // highest priority
+  else if (sc % 10  === 0) snd = mumiaAudio;
+  else if (sc % 10  === 7) snd = dzwiek7Audio;
+  if (snd) { snd.currentTime = 0; snd.play().catch(() => {}); }
+}
+
+// ── Images ────────────────────────────────────────────────────────────────────
+let playerCanvas = null, cloudCanvas = null, cloudH = CLOUD_W;
 
 function removeWhiteBg(img, w, h) {
-  const c  = document.createElement('canvas');
-  c.width  = w; c.height = h;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
   const cx = c.getContext('2d');
   cx.drawImage(img, 0, 0, w, h);
   try {
@@ -85,55 +164,60 @@ function removeWhiteBg(img, w, h) {
     for (let i = 0; i < d.length; i += 4)
       if (d[i] >= 200 && d[i+1] >= 200 && d[i+2] >= 200) d[i+3] = 0;
     cx.putImageData(id, 0, 0);
-  } catch (_) { /* CORS on local file:// — use as-is */ }
+  } catch(_) {}
   return c;
 }
 
-function loadImages() {
-  return new Promise(resolve => {
-    let pending = 2;
-    const done = () => { if (--pending === 0) resolve(); };
+await new Promise(resolve => {
+  let pending = 2;
+  const done = () => { if (--pending === 0) resolve(); };
+  const pi = new Image(); pi.crossOrigin = 'anonymous';
+  pi.onload  = () => { playerCanvas = removeWhiteBg(pi, pi.naturalWidth, pi.naturalHeight); done(); };
+  pi.onerror = done; pi.src = 'assets/player.jpg';
+  const ci = new Image(); ci.crossOrigin = 'anonymous';
+  ci.onload = () => {
+    cloudH = Math.max(1, Math.round(ci.naturalHeight * CLOUD_W / ci.naturalWidth));
+    cloudCanvas = removeWhiteBg(ci, CLOUD_W, cloudH); done();
+  };
+  ci.onerror = done; ci.src = 'assets/score.jpg';
+});
 
-    const pi = new Image();
-    pi.crossOrigin = 'anonymous';
-    pi.onload  = () => { playerCanvas = removeWhiteBg(pi, pi.naturalWidth, pi.naturalHeight); done(); };
-    pi.onerror = done;
-    pi.src = 'assets/player.jpg';
+// ── Nick popup ────────────────────────────────────────────────────────────────
+let playerNick = '';
+const popup     = document.getElementById('nick-popup');
+const nickInput = document.getElementById('nick-input');
+const nickBtn   = document.getElementById('nick-start');
 
-    const ci = new Image();
-    ci.crossOrigin = 'anonymous';
-    ci.onload = () => {
-      const scale = CLOUD_W / ci.naturalWidth;
-      cloudH = Math.max(1, Math.round(ci.naturalHeight * scale));
-      cloudCanvas = removeWhiteBg(ci, CLOUD_W, cloudH);
-      done();
-    };
-    ci.onerror = done;
-    ci.src = 'assets/score.jpg';
-  });
+function submitNick() {
+  const val = nickInput.value.trim();
+  if (!val) { nickInput.classList.add('error'); return; }
+  nickInput.classList.remove('error');
+  playerNick = val.slice(0, 16);
+  popup.style.display = 'none';
 }
+nickBtn.addEventListener('click', submitNick);
+nickInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitNick();
+  e.stopPropagation();   // don't let Space trigger game jump
+});
+nickInput.focus();
 
 // ── Game state ────────────────────────────────────────────────────────────────
-// states: 'waiting' | 'playing' | 'gameover' | 'youlose'
 let state      = 'waiting';
-let deathCount = 0;   // survives restarts, resets only on page refresh
+let deathCount = 0;
 let score      = 0;
 let pipes      = [];
 let pipeTimer  = 0;
 let gameOverAt = 0;
 
+let leaderboard        = [];
+let leaderboardLoading = false;
+
 const bird = {
   x: 80, y: GH / 2, vy: 0,
-  jump()    { this.vy = JUMP_FORCE; },
-  update(dt) {
-    const f = dt / 16.667;
-    this.vy += GRAVITY * f;
-    this.y  += this.vy  * f;
-  },
-  rect() {
-    const m = 8;
-    return { x: this.x + m, y: this.y + m, w: BIRD_SIZE - m*2, h: BIRD_SIZE - m*2 };
-  }
+  jump()     { this.vy = JUMP_FORCE; },
+  update(dt) { const f = dt/16.667; this.vy += GRAVITY*f; this.y += this.vy*f; },
+  rect()     { const m=8; return { x:this.x+m, y:this.y+m, w:BIRD_SIZE-m*2, h:BIRD_SIZE-m*2 }; }
 };
 
 function spawnPipe() {
@@ -141,25 +225,26 @@ function spawnPipe() {
   pipes.push({ x: GW, topH: gc - PIPE_GAP/2, botY: gc + PIPE_GAP/2,
                passed: false, collected: false });
 }
-
 function resetGame() {
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
   pipes = []; pipeTimer = 0; score = 0;
-  stopMusic();
-  state = 'waiting';
+  leaderboard = []; leaderboardLoading = false;
+  stopMusic(); state = 'waiting';
 }
+function startGame() { state = 'playing'; bird.jump(); startMusic(); }
 
-function startGame() {
-  state = 'playing';
-  bird.jump();
-  startMusic();
-}
-
-function die() {
+async function die() {
   deathCount++;
   stopMusic();
   gameOverAt = performance.now();
   state = deathCount >= DEATH_LIMIT ? 'youlose' : 'gameover';
+
+  // Save to Firestore and fetch top 10
+  leaderboardLoading = true;
+  leaderboard = [];
+  await saveScore(playerNick, score);
+  leaderboard = await getTopScores();
+  leaderboardLoading = false;
 }
 
 function overlaps(a, b) {
@@ -176,11 +261,9 @@ function update(dt) {
 
   bird.update(dt);
 
-  // Spawn pipes
   pipeTimer += dt;
   if (pipeTimer >= PIPE_INTERVAL) { spawnPipe(); pipeTimer = 0; }
 
-  // Move & cull pipes
   const f = dt / 16.667;
   for (const p of pipes) {
     p.x -= PIPE_SPEED * f;
@@ -190,28 +273,24 @@ function update(dt) {
 
   const br = bird.rect();
 
-  // Cloud collection
+  // Cloud collection + special sounds
   if (cloudCanvas) {
     for (const p of pipes) {
       if (!p.collected) {
-        const cr = {
-          x: p.x + PIPE_WIDTH/2 - CLOUD_W/2,
-          y: (p.topH + p.botY)/2 - cloudH/2,
-          w: CLOUD_W, h: cloudH
-        };
+        const cr = { x: p.x + PIPE_WIDTH/2 - CLOUD_W/2,
+                     y: (p.topH + p.botY)/2 - cloudH/2,
+                     w: CLOUD_W, h: cloudH };
         if (overlaps(br, cr)) {
           p.collected = true;
           score++;
           playKaching();
+          playSpecialSound(score);
         }
       }
     }
   }
 
-  // Ceiling / floor
   if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
-
-  // Pipe collision
   for (const p of pipes) {
     if (overlaps(br, { x: p.x, y: 0,     w: PIPE_WIDTH, h: p.topH       }) ||
         overlaps(br, { x: p.x, y: p.botY, w: PIPE_WIDTH, h: GH - p.botY })) {
@@ -221,101 +300,112 @@ function update(dt) {
 }
 
 // ── Draw helpers ──────────────────────────────────────────────────────────────
-function text(str, x, y, font, color, align = 'center') {
+function txt(str, x, y, font, color, align = 'center') {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align;
   ctx.fillText(str, x, y);
 }
-
-function overlay(alpha) {
-  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-  ctx.fillRect(0, 0, GW, GH);
-}
+function overlay(a) { ctx.fillStyle=`rgba(0,0,0,${a})`; ctx.fillRect(0,0,GW,GH); }
 
 function drawPipe(p) {
-  const cx = p.x - 10, cw = PIPE_WIDTH + 20, ch = 28;
+  const cx = p.x-10, cw = PIPE_WIDTH+20, ch = 28;
   if (p.topH > 0) {
-    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
-    ctx.fillStyle = '#127812'; ctx.fillRect(cx, p.topH - ch, cw, ch);
+    ctx.fillStyle='#22b422'; ctx.fillRect(p.x,0,PIPE_WIDTH,p.topH);
+    ctx.fillStyle='#127812'; ctx.fillRect(cx,p.topH-ch,cw,ch);
   }
   if (p.botY < GH) {
-    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
-    ctx.fillStyle = '#127812'; ctx.fillRect(cx, p.botY, cw, ch);
+    ctx.fillStyle='#22b422'; ctx.fillRect(p.x,p.botY,PIPE_WIDTH,GH-p.botY);
+    ctx.fillStyle='#127812'; ctx.fillRect(cx,p.botY,cw,ch);
   }
 }
-
-function drawBird(x, y, angle) {
-  const cx = x + BIRD_SIZE/2, cy = y + BIRD_SIZE/2;
+function drawBirdAt(x, y, angle) {
   ctx.save();
-  ctx.translate(cx, cy);
+  ctx.translate(x + BIRD_SIZE/2, y + BIRD_SIZE/2);
   ctx.rotate(angle * Math.PI / 180);
-  if (playerCanvas) {
+  if (playerCanvas)
     ctx.drawImage(playerCanvas, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
-  } else {
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2 - 4, 0, Math.PI*2); ctx.fill();
+  else {
+    ctx.fillStyle='#ffd700';
+    ctx.beginPath(); ctx.arc(0,0,BIRD_SIZE/2-4,0,Math.PI*2); ctx.fill();
   }
   ctx.restore();
+}
+
+function drawLeaderboard(y0) {
+  txt('\uD83C\uDFC6 TOP 10', GW/2, y0, 'bold 15px Arial', '#ffd700');
+  if (leaderboardLoading) {
+    txt('Ładowanie wyników...', GW/2, y0+24, '14px Arial', '#888');
+    return;
+  }
+  if (!leaderboard.length) {
+    txt('Brak wyników', GW/2, y0+24, '14px Arial', '#888');
+    return;
+  }
+  leaderboard.forEach((e, i) => {
+    const ry = y0 + 22 + i * 23;
+    const isMe = e.nick === playerNick && e.score === score;
+    const color = isMe ? '#ffd700' : (i < 3 ? '#fff' : '#a0a0a0');
+    ctx.font = '14px Arial'; ctx.fillStyle = color;
+    ctx.textAlign = 'left';  ctx.fillText(`${i+1}. ${e.nick}`, 22, ry);
+    ctx.textAlign = 'right'; ctx.fillText(String(e.score), GW-22, ry);
+  });
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
 function drawWaiting() {
   overlay(0.35);
-  text('Bobby Bird', GW/2, GH/4 + 10, 'bold 52px Arial', '#ffd700');
-  const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now() / 333) * 12;
-  drawBird(GW/2 - BIRD_SIZE/2, hy, 0);
-  if (Math.floor(performance.now() / 600) % 2 === 0)
-    text('Tap or press SPACE to start', GW/2, GH*2/3 + 10, 'bold 21px Arial', '#ffffff');
+  txt('Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
+  const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
+  drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
+  if (Math.floor(performance.now()/600) % 2 === 0)
+    txt('Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
 }
 
 function drawGameOver() {
-  overlay(0.55);
-  text('GAME OVER', GW/2, GH/2 - 60, 'bold 52px Arial', '#dc3232');
-  text('Score: ' + score, GW/2, GH/2, 'bold 34px Arial', '#ffd700');
-  const rem = Math.max(0, 3 - (performance.now() - gameOverAt) / 1000).toFixed(1);
-  text('Restarting in ' + rem + 's  \u2022  Tap to restart', GW/2, GH/2 + 60, '20px Arial', '#a0a0a0');
+  overlay(0.62);
+  txt('GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232');
+  txt('Score: ' + score, GW/2, 108, 'bold 26px Arial', '#ffd700');
+  // divider
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(20, 122); ctx.lineTo(GW-20, 122); ctx.stroke();
+  // leaderboard
+  drawLeaderboard(138);
+  // divider
+  ctx.beginPath(); ctx.moveTo(20, 395); ctx.lineTo(GW-20, 395); ctx.stroke();
+  // restart
+  const rem = Math.max(0, 3-(performance.now()-gameOverAt)/1000).toFixed(1);
+  txt('Restart za ' + rem + 's  \u2022  Tap aby teraz', GW/2, 420, '16px Arial', '#888');
 }
 
 function drawYouLose() {
   overlay(0.72);
-  text('YOU LOSE \uD83D\uDE02', GW/2, GH/2 - 50, 'bold 52px Arial', '#dc3232');
-  text('Score: ' + score, GW/2, GH/2 + 20, 'bold 30px Arial', '#ffd700');
-  text('Refresh to play again', GW/2, GH/2 + 70, '22px Arial', '#a0a0a0');
+  txt('YOU LOSE \uD83D\uDE02', GW/2, 80, 'bold 48px Arial', '#dc3232');
+  txt('Score: ' + score, GW/2, 120, 'bold 26px Arial', '#ffd700');
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(20, 134); ctx.lineTo(GW-20, 134); ctx.stroke();
+  drawLeaderboard(150);
+  txt('Odśwież aby zagrać ponownie', GW/2, 430, '18px Arial', '#a0a0a0');
 }
 
 // ── Main draw ─────────────────────────────────────────────────────────────────
 function draw() {
-  // Background
-  ctx.fillStyle = '#0f1432';
-  ctx.fillRect(0, 0, GW, GH);
-
-  // Stars
+  ctx.fillStyle = '#0f1432'; ctx.fillRect(0,0,GW,GH);
   ctx.fillStyle = '#b4c8ff';
-  for (const s of STARS) {
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
-  }
+  for (const s of STARS) { ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }
 
-  // Pipes + clouds
   for (const p of pipes) {
     drawPipe(p);
-    if (cloudCanvas && !p.collected) {
-      ctx.drawImage(cloudCanvas,
-        p.x + PIPE_WIDTH/2 - CLOUD_W/2,
-        (p.topH + p.botY)/2 - cloudH/2,
-        CLOUD_W, cloudH);
-    }
+    if (cloudCanvas && !p.collected)
+      ctx.drawImage(cloudCanvas, p.x+PIPE_WIDTH/2-CLOUD_W/2,
+                    (p.topH+p.botY)/2-cloudH/2, CLOUD_W, cloudH);
   }
-
-  // Bird (only while not on start screen — waiting draws its own hovering bird)
   if (state !== 'waiting') {
-    const angle = Math.max(-35, Math.min(50, -bird.vy * 3));
-    drawBird(bird.x, bird.y, angle);
+    drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
   }
 
   // HUD
-  text(String(score), GW - 15, 40, 'bold 32px Arial', '#ffffff', 'right');
-  text('Deaths: ' + deathCount + '/10', 10, 36, '20px Arial', '#a0a0a0', 'left');
+  txt(String(score), GW-15, 40, 'bold 32px Arial', '#fff', 'right');
+  txt('Deaths: '+deathCount+'/10', 10, 36, '20px Arial', '#a0a0a0', 'left');
 
-  // State overlay
   if      (state === 'waiting')  drawWaiting();
   else if (state === 'gameover') drawGameOver();
   else if (state === 'youlose')  drawYouLose();
@@ -323,10 +413,11 @@ function draw() {
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 function onAction() {
-  if (state === 'youlose')  return;           // must refresh
-  if (state === 'waiting')  { startGame(); return; }
-  if (state === 'playing')  { bird.jump(); return; }
-  if (state === 'gameover') { resetGame(); return; }
+  if (!playerNick)           return;   // wait for nick popup
+  if (state === 'youlose')   return;
+  if (state === 'waiting')   { startGame(); return; }
+  if (state === 'playing')   { bird.jump(); return; }
+  if (state === 'gameover')  { resetGame(); return; }
 }
 
 document.addEventListener('keydown', e => {
@@ -344,8 +435,7 @@ function loop(now) {
   draw();
   requestAnimationFrame(loop);
 }
-
-loadImages().then(() => requestAnimationFrame(loop));
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
