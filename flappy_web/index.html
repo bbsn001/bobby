@@ -117,6 +117,10 @@
     .cc-btn.select  { background: #1a6aff; color: #fff; }
     .cc-btn.buy     { background: #ffd700; color: #0f1432; }
     .cc-btn.locked  { background: #1e1e4a; color: #444; cursor: default; }
+
+    /* ── Char picker (lobby) ────────────────────────────────────────────── */
+    #charPicker { scrollbar-width: none; }
+    #charPicker::-webkit-scrollbar { display: none; }
   </style>
 </head>
 <body>
@@ -146,6 +150,13 @@
         <div id="charPreviewName" class="cp-name">Bobby</div>
         <div id="charPreviewBonus" class="cp-bonus">brak bonusów</div>
       </div>
+    </div>
+
+    <!-- Horizontal character picker -->
+    <div id="charPicker"
+      style="display:flex;overflow-x:auto;gap:8px;padding:4px 2px;
+             width:100%;max-width:280px;margin-bottom:18px;
+             -webkit-overflow-scrolling:touch">
     </div>
 
     <div class="timer-label">Czas rundy:</div>
@@ -226,11 +237,18 @@ async function loadPlayerData(nick) {
     const snap = await getDoc(doc(db, 'leaderboard', nick));
     if (snap.exists()) {
       const d = snap.data();
-      return {
-        coins:         d.coins          ?? 0,
-        unlockedSkins: d.unlockedSkins  ?? ['bobby'],
-        activeSkin:    d.activeSkin     ?? 'bobby',
-      };
+      // Normalize unlockedSkins — Firestore może zwrócić array, string-JSON lub undefined
+      let skins = d.unlockedSkins;
+      if (!Array.isArray(skins)) {
+        if (typeof skins === 'string') {
+          try { skins = JSON.parse(skins); } catch { skins = ['bobby']; }
+          if (!Array.isArray(skins)) skins = ['bobby'];
+        } else {
+          skins = ['bobby'];
+        }
+      }
+      console.log('[loadPlayerData]', nick, '→ coins:', d.coins, 'skins:', skins, 'active:', d.activeSkin);
+      return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby' };
     }
   } catch(e) { console.warn('loadPlayerData:', e); }
   return { coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby' };
@@ -284,7 +302,7 @@ window.addEventListener('resize', resize);
 // ── Base constants ────────────────────────────────────────────────────────────
 const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
 const PIPE_GAP = 175, PIPE_WIDTH = 72, PIPE_INTERVAL = 1750;
-const BIRD_SIZE = 60, COL_W = 70, DEATH_LIMIT = 10;
+const BIRD_SIZE = 60, COL_W = 70;
 
 // ── Stars ─────────────────────────────────────────────────────────────────────
 const STARS = Array.from({ length: 25 }, () => ({
@@ -457,10 +475,65 @@ nickInput.focus();
 // ── Lobby UI ──────────────────────────────────────────────────────────────────
 function updateLobbyUI() {
   document.getElementById('lobbyNick').textContent        = playerNick;
-  document.getElementById('lobbyCoins').textContent       = '🎵 ' + playerCoins + ' coinów';
+  document.getElementById('lobbyCoins').textContent       = '\uD83C\uDFB5 ' + playerCoins + ' coin\xF3w';
   document.getElementById('charPreviewName').textContent  = CHARACTERS[activeSkin].name;
   document.getElementById('charPreviewBonus').textContent = CHARACTERS[activeSkin].desc;
-  document.getElementById('charPreviewImg').src = `assets/characters/${CHARACTERS[activeSkin].img}`;
+  document.getElementById('charPreviewImg').src           = `assets/characters/${CHARACTERS[activeSkin].img}`;
+  renderCharPicker();
+}
+
+function renderCharPicker() {
+  const bar = document.getElementById('charPicker');
+  if (!bar) return;
+  bar.innerHTML = '';
+  CHAR_KEYS.forEach(key => {
+    const ch     = CHARACTERS[key];
+    const owned  = unlockedSkins.includes(key);
+    const active = activeSkin === key;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText =
+      `flex-shrink:0;position:relative;border-radius:8px;
+       border:2px solid ${active ? '#ffd700' : 'transparent'};
+       opacity:${owned ? 1 : 0.4};
+       cursor:${owned ? 'pointer' : 'default'};
+       touch-action:manipulation;`;
+
+    const img = document.createElement('img');
+    img.src = `assets/characters/${ch.img}`;
+    img.alt = ch.name;
+    img.title = ch.name;
+    img.style.cssText = 'width:50px;height:50px;object-fit:cover;border-radius:6px;display:block;background:#0f1432';
+
+    wrap.appendChild(img);
+
+    if (!owned) {
+      const lock = document.createElement('div');
+      lock.style.cssText =
+        'position:absolute;inset:0;display:flex;align-items:center;' +
+        'justify-content:center;font-size:16px;pointer-events:none;border-radius:6px;' +
+        'background:rgba(0,0,0,.35)';
+      lock.textContent = '\uD83D\uDD12';
+      wrap.appendChild(lock);
+    }
+
+    if (owned) {
+      let pGuard = false;
+      async function pickChar(e) {
+        if (e) e.preventDefault();
+        if (pGuard || activeSkin === key) return;
+        pGuard = true;
+        activeSkin = key;
+        await applyActiveSkin(key);
+        await saveProgress();
+        updateLobbyUI();
+      }
+      wrap.addEventListener('click',    pickChar);
+      wrap.addEventListener('touchend', pickChar);
+    }
+
+    bar.appendChild(wrap);
+  });
 }
 
 document.querySelectorAll('.timer-btn').forEach(btn => {
@@ -495,15 +568,18 @@ document.getElementById('shopBack').addEventListener('click',    () => showLobby
 document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); showLobby(); });
 
 function renderShop() {
+  console.log('[Shop] render — coins:', playerCoins, 'unlocked:', unlockedSkins, 'active:', activeSkin);
   document.getElementById('shopCoins').textContent = '🎵 ' + playerCoins;
   const grid = document.getElementById('shopGrid');
+  if (!grid) { console.error('[Shop] shopGrid element not found!'); return; }
   grid.innerHTML = '';
 
   CHAR_KEYS.forEach(key => {
-    const ch      = CHARACTERS[key];
-    const owned   = unlockedSkins.includes(key);
+    const ch       = CHARACTERS[key];
+    const owned    = unlockedSkins.includes(key);
     const isActive = activeSkin === key;
-    const canBuy  = !owned && playerCoins >= ch.price;
+    const canBuy   = !owned && playerCoins >= ch.price;
+    console.log('[Shop] card:', key, '| owned:', owned, '| active:', isActive, '| canBuy:', canBuy);
 
     const card = document.createElement('div');
     card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
@@ -511,6 +587,7 @@ function renderShop() {
     const img = document.createElement('img');
     img.src = `assets/characters/${ch.img}`;
     img.alt = ch.name;
+    img.onerror = () => { img.style.opacity = '.3'; };
 
     const name = document.createElement('div');
     name.className = 'cc-name'; name.textContent = ch.name;
@@ -519,41 +596,49 @@ function renderShop() {
     bonuses.className = 'cc-bonuses'; bonuses.textContent = ch.desc;
 
     const btn = document.createElement('button');
-    btn.className = 'cc-btn ' + (isActive?'active' : owned?'select' : canBuy?'buy':'locked');
-    btn.textContent = isActive ? '✓ AKTYWNA' : owned ? 'WYBIERZ'
-                    : canBuy  ? `KUP 🎵${ch.price}` : `🔒 ${ch.price}🎵`;
+    btn.className = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
+    btn.textContent = isActive ? '✓ AKTYWNA'
+                    : owned    ? 'WYBIERZ'
+                    : canBuy   ? `KUP \uD83C\uDFB5${ch.price}`
+                    :            `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
     if (isActive || (!owned && !canBuy)) btn.disabled = true;
 
     let guard = false;
-    async function doAction() {
-      if (guard) return; guard = true;
+    async function doAction(e) {
+      if (e) e.preventDefault();
+      if (guard) return;
+      guard = true;
+      console.log('[Shop] doAction:', key, '| owned:', owned);
       if (owned) {
         activeSkin = key;
         await applyActiveSkin(key);
         await saveProgress();
-        renderShop(); updateLobbyUI();
+        renderShop();
+        updateLobbyUI();
       } else {
-        if (playerCoins < ch.price) { guard = false; return; }
-        playerCoins  -= ch.price;
-        unlockedSkins = [...unlockedSkins, key];
-        activeSkin    = key;
+        if (playerCoins < ch.price) { console.warn('[Shop] not enough coins'); guard = false; return; }
+        playerCoins   -= ch.price;
+        unlockedSkins  = [...unlockedSkins, key];
+        activeSkin     = key;
         await applyActiveSkin(key);
         await saveProgress();
-        renderShop(); updateLobbyUI();
+        console.log('[Shop] bought:', key, '| new coins:', playerCoins);
+        renderShop();
+        updateLobbyUI();
       }
     }
     btn.addEventListener('click',    doAction);
-    btn.addEventListener('touchend', e => { e.preventDefault(); doAction(); });
+    btn.addEventListener('touchend', doAction);
 
     card.append(img, name, bonuses, btn);
     grid.appendChild(card);
   });
+  console.log('[Shop] rendered', grid.children.length, 'cards');
 }
 
 // ── Game state ────────────────────────────────────────────────────────────────
-let state      = 'waiting';
-let deathCount = 0;
-let score      = 0;
+let state  = 'waiting';
+let score  = 0;
 let pipes      = [];
 let pipeTimer  = 0;
 let gameOverAt = 0;
@@ -575,7 +660,6 @@ function initNewSession() {
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
   pipes = []; pipeTimer = 0; score = 0;
   leaderboard = []; leaderboardLoading = false;
-  deathCount  = 0;
   extraLifeAvail = S_EXTRA; flashUntil = 0;
   state = 'waiting';
   stopMusic();
@@ -607,17 +691,27 @@ async function die() {
     flashUntil = performance.now() + 1200;
     return;
   }
-
-  deathCount++;
   stopMusic();
   gameOverAt = performance.now();
-  state = deathCount >= DEATH_LIMIT ? 'youlose' : 'gameover';
-
+  state = 'gameover';                      // zwykła śmierć → game over (auto-reset 3s)
   leaderboardLoading = true;
   leaderboard = [];
   await saveScoreAndProgress(score);
   leaderboard = await getTopScores();
   leaderboardLoading = false;
+}
+
+// Koniec czasu → youlose → lobby
+function timeUp() {
+  timerRemaining = 0;
+  stopMusic();
+  gameOverAt = performance.now();
+  state = 'youlose';
+  leaderboardLoading = true;
+  leaderboard = [];
+  saveScoreAndProgress(score)
+    .then(() => getTopScores())
+    .then(lb => { leaderboard = lb; leaderboardLoading = false; });
 }
 
 function overlaps(a, b) {
@@ -634,7 +728,7 @@ function update(dt) {
 
   // Timer
   timerRemaining = selectedTimer - (performance.now() - roundStartTime) / 1000;
-  if (timerRemaining <= 0) { timerRemaining = 0; die(); return; }
+  if (timerRemaining <= 0) { timeUp(); return; }
 
   bird.update(dt);
 
@@ -783,22 +877,18 @@ function draw() {
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
 
   // ── HUD ──────────────────────────────────────────────────────────────────
-  txt('Deaths:'+deathCount+'/'+DEATH_LIMIT, 8, 22, '15px Arial', '#909090', 'left');
+  txt('\uD83C\uDFB5'+playerCoins, 8, 22, '15px Arial', '#ffd700', 'left');  // coins — lewy górny
   txt(String(score), GW-8, 22, 'bold 28px Arial', '#fff', 'right');
 
   // Timer (center, red when <30s)
-  if (state === 'playing' || state === 'gameover') {
-    const t = state === 'playing' ? timerRemaining : 0;
-    txt(fmt(t), GW/2, 22, 'bold 18px Arial', t < 30 ? '#dc3232' : '#ffd700');
+  if (state === 'playing') {
+    txt(fmt(timerRemaining), GW/2, 22, 'bold 18px Arial', timerRemaining < 30 ? '#dc3232' : '#ffd700');
   }
 
-  // Extra-life heart
+  // Extra-life heart (pod coinami)
   if (S_EXTRA)
     txt(extraLifeAvail ? '\u2665' : '\u2661', 8, 42, '15px Arial',
         extraLifeAvail ? '#dc3232' : '#444', 'left');
-
-  // Coins
-  txt('\uD83C\uDFB5'+playerCoins, GW-8, 44, '13px Arial', '#ffd700', 'right');
 
   if      (state === 'waiting')  drawWaiting();
   else if (state === 'gameover') drawGameOver();
