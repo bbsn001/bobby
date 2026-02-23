@@ -10,17 +10,18 @@
       width: 100%; height: 100%;
       background: #0f1432;
       display: flex; justify-content: center; align-items: center;
-      overflow: hidden; touch-action: none; user-select: none;
+      overflow: hidden;
       font-family: Arial, sans-serif;
     }
-    canvas { display: block; }
+    canvas { display: block; touch-action: none; user-select: none; }
 
     /* ── Nick popup ─────────────────────────────────────────────────────── */
     #nick-popup {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.88);
       display: flex; justify-content: center; align-items: center;
-      z-index: 100;
+      z-index: 9999;
+      touch-action: auto;   /* nie blokuj dotyku w popupie */
     }
     .popup-box {
       background: #1a2060;
@@ -208,7 +209,8 @@ function submitNick() {
   playerNick = val.slice(0, 16);
   popup.style.display = 'none';
 }
-nickBtn.addEventListener('click', submitNick);
+nickBtn.addEventListener('click',    submitNick);
+nickBtn.addEventListener('touchend', e => { e.preventDefault(); submitNick(); });
 nickInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') submitNick();
   e.stopPropagation();   // don't let Space trigger game jump
@@ -436,8 +438,10 @@ function onAction() {
 document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); onAction(); }
 });
-document.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
-document.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
+// Listenery na canvas — zdarzenia z popupu (#nick-popup) nie są potomkami canvas,
+// więc nie bubblują tutaj i nie zakłócają inputa ani przycisku Start.
+canvas.addEventListener('mousedown',  e => { e.preventDefault(); onAction(); });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onAction(); }, { passive: false });
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
 let lastTime = 0;
