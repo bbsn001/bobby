@@ -71,7 +71,8 @@
 <script type="module">
 // ── Firebase ──────────────────────────────────────────────────────────────────
 import { initializeApp }                              from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, addDoc,
+import { getFirestore, collection, doc,
+         getDoc, setDoc,
          getDocs, query, orderBy, limit }             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -87,7 +88,15 @@ const db  = getFirestore(app);
 
 async function saveScore(nick, score) {
   try {
-    await addDoc(collection(db, 'leaderboard'), { nick, score, date: new Date() });
+    const ref  = doc(db, 'leaderboard', nick);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      if (score > snap.data().score)
+        await setDoc(ref, { nick, score, date: new Date() });
+      // else lower/equal — skip
+    } else {
+      await setDoc(ref, { nick, score, date: new Date() });
+    }
   } catch(e) { console.warn('Firestore save:', e); }
 }
 async function getTopScores() {
