@@ -324,22 +324,47 @@ function renderBackgroundToCache() {
 }
 renderBackgroundToCache();
 
-// ── Audio (sounds in assets/sounds/) ─────────────────────────────────────────
-const bgMusic     = new Audio('assets/sounds/music.mp3');
+// ── Audio ─────────────────────────────────────────────────────────────────────
+// Background music — HTMLAudioElement (streaming)
+const bgMusic = new Audio('assets/sounds/music.mp3');
 bgMusic.loop = true; bgMusic.volume = 0.3;
-
-function makePool(src, vol, size) {
-  const pool = Array.from({ length: size }, () => { const a = new Audio(src); a.volume = vol; return a; });
-  let idx = 0;
-  return () => { const s = pool[idx]; s.currentTime = 0; s.play().catch(() => {}); idx = (idx + 1) % pool.length; };
-}
-const playKaching  = makePool('assets/sounds/kaching.wav',  0.5, 5);
-const playMumia    = makePool('assets/sounds/mumia.mp3',    1.0, 2);
-const playDzwiek7  = makePool('assets/sounds/7.mp3',        1.0, 2);
-const playKrystian = makePool('assets/sounds/krystian.mp3', 1.0, 2);
-
 function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(e => console.warn('music blocked:', e)); }
 function stopMusic()  { bgMusic.pause(); }
+
+// Sound effects — Web Audio API (low-latency, no pool needed)
+const _AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new _AudioContext();
+const audioBuffers = {};
+
+async function loadAudioBuffer(key, url) {
+  try {
+    const res = await fetch(url);
+    const arr = await res.arrayBuffer();
+    audioBuffers[key] = await audioCtx.decodeAudioData(arr);
+  } catch(e) { console.warn('Audio load error:', key, e); }
+}
+
+function playSound(key, vol = 1.0) {
+  if (!audioBuffers[key]) return;
+  const src = audioCtx.createBufferSource();
+  src.buffer = audioBuffers[key];
+  const gain = audioCtx.createGain();
+  gain.gain.value = vol;
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(0);
+}
+
+const playKaching  = () => playSound('kaching',  0.5);
+const playMumia    = () => playSound('mumia',    1.0);
+const playDzwiek7  = () => playSound('dzwiek7',  1.0);
+const playKrystian = () => playSound('krystian', 1.0);
+
+loadAudioBuffer('kaching',  'assets/sounds/kaching.wav');
+loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3');
+loadAudioBuffer('dzwiek7',  'assets/sounds/7.mp3');
+loadAudioBuffer('krystian', 'assets/sounds/krystian.mp3');
+
 function playSpecialSound(sc) {
   if (sc <= 0) return;
   if      (sc % 100 === 0) playKrystian();
@@ -419,12 +444,13 @@ const nickScreen  = document.getElementById('nickScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const shopScreen  = document.getElementById('shopScreen');
 
+let isGameCanvasVisible = false;
+
 function hideAll() {
-  nickScreen.style.display  = 'none';
-  lobbyScreen.style.display = 'none';
-  shopScreen.style.display  = 'none';
-  canvas.style.display      = 'none';
-  hudEl.style.display       = 'none';
+  nickScreen.style.display = lobbyScreen.style.display =
+  shopScreen.style.display = canvas.style.display =
+  hudEl.style.display = 'none';
+  isGameCanvasVisible = false;
 }
 function showLobby() {
   hideAll();
@@ -438,8 +464,8 @@ function showShop() {
 }
 function showGame() {
   hideAll();
-  canvas.style.display = 'block';
-  hudEl.style.display  = 'block';
+  canvas.style.display = hudEl.style.display = 'block';
+  isGameCanvasVisible = true;
   resize();
   startGameLoop();
 }
@@ -557,15 +583,12 @@ lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); })
 function onShopBack() {
   if (shopFromWaiting) {
     shopFromWaiting = false;
-    computeSessionParams();
-    initNewSession();
+    computeSessionParams(); initNewSession();
     hideAll();
-    canvas.style.display = 'block';
-    hudEl.style.display  = 'block';
+    canvas.style.display = hudEl.style.display = 'block';
+    isGameCanvasVisible = true;
     resize();
-  } else {
-    showLobby();
-  }
+  } else { showLobby(); }
 }
 document.getElementById('shopBack').addEventListener('click',    () => onShopBack());
 document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); onShopBack(); });
@@ -929,32 +952,39 @@ canvas.addEventListener('mousedown',  e => { e.preventDefault(); const p = canva
 canvas.addEventListener('touchstart', e => { e.preventDefault(); const p = canvasXY(e); onAction(p.x, p.y); }, { passive: false });
 
 // ── Game loop (starts once, runs forever) ─────────────────────────────────────
-let lastTime = 0, loopRunning = false;
+let lastTime = performance.now(), loopRunning = false;
+let accumulator = 0;
+const TIME_STEP = 16.667;
+
 function loop(now) {
-  const dt = 16.667;
-  lastTime = now;
-  if (canvas.style.display !== 'none') {
-    update(dt);
+  if (!loopRunning) return;
+  requestAnimationFrame(loop);
+  let dt = now - lastTime; lastTime = now;
+  if (dt > 100) dt = 100;
+  if (isGameCanvasVisible) {
+    accumulator += dt;
+    while (accumulator >= TIME_STEP) { update(TIME_STEP); accumulator -= TIME_STEP; }
     if (state === 'playing' || state === 'waiting' || state === 'gameover') draw();
   }
-  requestAnimationFrame(loop);
 }
 function startGameLoop() {
   if (loopRunning) return;
   loopRunning = true;
-  lastTime = 0;
+  lastTime = performance.now();
+  accumulator = 0;
   requestAnimationFrame(loop);
 }
 
-// ── Visibility change — reset delta time after tab switch ─────────────────────
-document.addEventListener('visibilitychange', () => { lastTime = 0; });
+// ── Visibility change — reset accumulator after tab switch ────────────────────
+document.addEventListener('visibilitychange', () => { lastTime = performance.now(); accumulator = 0; });
 
 // ── Audio prewarm — unlock AudioContext on first user gesture ─────────────────
 let audioUnlocked = false;
 function unlockAudioOnFirstTouch() {
   if (audioUnlocked) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   const silence = new Audio();
-  silence.src = 'data:audio/mp3;base64,//OExAAAAA...';
+  silence.src = 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
   silence.play().catch(() => {});
   audioUnlocked = true;
 }
