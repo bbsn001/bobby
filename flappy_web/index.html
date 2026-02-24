@@ -191,6 +191,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
+// ── Leaderboard cache canvas ───────────────────────────────────────────────────
+const lbCacheCanvas = document.createElement('canvas');
+const lbCtx = lbCacheCanvas.getContext('2d');
+let lbCacheReady = false;
+
 // ── Character definitions ─────────────────────────────────────────────────────
 const CHARACTERS = {
   bobby:    { name:'Bobby',     img:'bobby.png',    price:0,   col:'soundcloud.png',
@@ -273,7 +278,8 @@ async function getTopScores() {
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
 const GW = 400, GH = 600;
-const dpr = Math.min(window.devicePixelRatio || 1, 3);
+const isMobile = window.innerWidth < 600;
+const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
 canvas.width  = Math.round(GW * dpr);
 canvas.height = Math.round(GH * dpr);
 canvas.style.imageRendering = 'auto';
@@ -649,7 +655,7 @@ function initNewSession() {
   bird.x = 80; bird.y = GH/2; bird.vy = 0;
   for (let i = 0; i < MAX_PIPES; i++) pipePool[i].active = false;
   pipeTimer = 0; score = 0;
-  leaderboard = []; leaderboardLoading = false;
+  leaderboard = []; leaderboardLoading = false; lbCacheReady = false;
   extraLifeAvail = S_EXTRA; flashUntil = 0;
   state = 'waiting';
   stopMusic();
@@ -682,6 +688,21 @@ async function die() {
   await saveScoreAndProgress(score);
   leaderboard = await getTopScores();
   leaderboardLoading = false;
+  lbCacheCanvas.width = GW; lbCacheCanvas.height = 300;
+  lbCtx.clearRect(0, 0, GW, 300);
+  if (!leaderboard.length) {
+    lbCtx.font = '13px Arial'; lbCtx.fillStyle = '#888'; lbCtx.textAlign = 'center';
+    lbCtx.fillText('Brak wyników', GW/2, 22);
+  } else {
+    leaderboard.forEach((e, i) => {
+      const ry = 20 + i * 22;
+      const color = e.nick === playerNick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
+      lbCtx.font = '13px Arial'; lbCtx.fillStyle = color;
+      lbCtx.textAlign = 'left';  lbCtx.fillText(`${i+1}. ${e.nick}`, 22, ry);
+      lbCtx.textAlign = 'right'; lbCtx.fillText(String(e.score), GW-22, ry);
+    });
+  }
+  lbCacheReady = true;
 }
 
 function overlaps(a, b) {
@@ -735,17 +756,6 @@ function txt(str, x, y, font, color, align = 'center') {
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
 
-function drawPipe(p) {
-  const bx = p.x-10, bw = PIPE_WIDTH+20, cap = 28;
-  if (p.topH > 0) {
-    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
-    ctx.fillStyle = '#127812'; ctx.fillRect(bx, p.topH-cap, bw, cap);
-  }
-  if (p.botY < GH) {
-    ctx.fillStyle = '#22b422'; ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH-p.botY);
-    ctx.fillStyle = '#127812'; ctx.fillRect(bx, p.botY, bw, cap);
-  }
-}
 function drawBirdAt(x, y, angle) {
   ctx.save();
   ctx.translate(x + BIRD_SIZE/2, y + BIRD_SIZE/2);
@@ -770,15 +780,7 @@ function drawBirdAt(x, y, angle) {
 function drawLeaderboard(y0) {
   txt('\uD83C\uDFC6 TOP 10', GW/2, y0, 'bold 15px Arial', '#ffd700');
   if (leaderboardLoading) { txt('Ładowanie...', GW/2, y0+22, '13px Arial', '#888'); return; }
-  if (!leaderboard.length) { txt('Brak wyników', GW/2, y0+22, '13px Arial', '#888'); return; }
-  leaderboard.forEach((e, i) => {
-    const ry    = y0 + 20 + i * 22;
-    const isMe  = e.nick === playerNick;
-    const color = isMe ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
-    ctx.font = '13px Arial'; ctx.fillStyle = color;
-    ctx.textAlign = 'left';  ctx.fillText(`${i+1}. ${e.nick}`, 22, ry);
-    ctx.textAlign = 'right'; ctx.fillText(String(e.score), GW-22, ry);
-  });
+  if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, y0);
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
@@ -816,12 +818,31 @@ function drawGameOver() {
 function draw() {
   ctx.drawImage(bgCacheCanvas, 0, 0);
 
+  // Pass 1: pipe bodies
+  ctx.fillStyle = '#22b422';
   for (let i = 0; i < MAX_PIPES; i++) {
     const p = pipePool[i];
     if (!p.active) continue;
-    drawPipe(p);
-    if (collectImg && !p.collected)
-      ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
+    if (p.topH > 0) ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
+    if (p.botY < GH) ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
+  }
+  // Pass 2: pipe caps
+  ctx.fillStyle = '#127812';
+  const _cap = 28, _bw = PIPE_WIDTH + 20;
+  for (let i = 0; i < MAX_PIPES; i++) {
+    const p = pipePool[i];
+    if (!p.active) continue;
+    const bx = p.x - 10;
+    if (p.topH > 0) ctx.fillRect(bx, p.topH - _cap, _bw, _cap);
+    if (p.botY < GH) ctx.fillRect(bx, p.botY, _bw, _cap);
+  }
+  // Pass 3: collectibles
+  if (collectImg) {
+    for (let i = 0; i < MAX_PIPES; i++) {
+      const p = pipePool[i];
+      if (p.active && !p.collected)
+        ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
+    }
   }
   if (state !== 'waiting')
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
