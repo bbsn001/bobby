@@ -292,10 +292,14 @@ canvas.height = Math.round(GH * dpr);
 canvas.style.imageRendering = 'auto';
 ctx.scale(dpr, dpr);
 
+let canvasRect = { left: 0, top: 0, width: GW, height: GH };
+const _touchPos = { x: 0, y: 0 };
+
 function resize() {
   const s = Math.min(window.innerWidth / GW, window.innerHeight / GH);
   canvas.style.width  = (GW * s) + 'px';
   canvas.style.height = (GH * s) + 'px';
+  setTimeout(() => { canvasRect = canvas.getBoundingClientRect(); }, 0);
 }
 window.addEventListener('resize', resize);
 
@@ -819,7 +823,6 @@ function drawLeaderboard(y0) {
 const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
 
 function drawWaiting() {
-  overlay(0.35);
   txt('Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
   const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
   drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
@@ -847,7 +850,13 @@ function drawGameOver() {
 }
 // ── Main draw ─────────────────────────────────────────────────────────────────
 function draw() {
-  ctx.drawImage(bgCacheCanvas, 0, 0);
+  if (state === 'waiting') {
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(bgCacheCanvas, 0, 0);
+    ctx.globalAlpha = 1.0;
+  } else {
+    ctx.drawImage(bgCacheCanvas, 0, 0);
+  }
 
   // Pass 1: pipe bodies
   ctx.fillStyle = '#22b422';
@@ -886,10 +895,11 @@ function draw() {
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 function canvasXY(e) {
-  const rect = canvas.getBoundingClientRect();
-  const cx = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - rect.left;
-  const cy = (e.clientY ?? e.touches?.[0]?.clientY ?? 0) - rect.top;
-  return { x: cx / rect.width * GW, y: cy / rect.height * GH };
+  const cx = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - canvasRect.left;
+  const cy = (e.clientY ?? e.touches?.[0]?.clientY ?? 0) - canvasRect.top;
+  _touchPos.x = cx / canvasRect.width * GW;
+  _touchPos.y = cy / canvasRect.height * GH;
+  return _touchPos;
 }
 function hitShopBtn(px, py) {
   const b = SHOP_BTN;
@@ -920,8 +930,10 @@ let lastTime = 0, loopRunning = false;
 function loop(now) {
   const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
   lastTime = now;
-  update(dt);
-  if (state === 'playing' || state === 'waiting' || state === 'gameover') draw();
+  if (canvas.style.display !== 'none') {
+    update(dt);
+    if (state === 'playing' || state === 'waiting' || state === 'gameover') draw();
+  }
   requestAnimationFrame(loop);
 }
 function startGameLoop() {
