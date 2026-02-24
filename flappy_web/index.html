@@ -600,11 +600,27 @@ function updateLobbyUI() {
   document.getElementById('charPreviewBonus').textContent = CHARACTERS[activeSkin].desc;
   document.getElementById('charPreviewImg').src           = `assets/characters/${CHARACTERS[activeSkin].img}`;
   renderCharPicker();
+
   const spikesBtn = document.getElementById('lobbySpikes');
-  if (unlockedSkins.length >= CHAR_KEYS.length) {
-    spikesBtn.style.display = 'flex';
+  const unlockedCount = unlockedSkins.length;
+  const totalCount = CHAR_KEYS.length;
+
+  spikesBtn.style.display = 'flex';
+
+  if (unlockedCount >= totalCount) {
+    spikesBtn.style.background  = '#dc3232';
+    spikesBtn.style.color       = '#fff';
+    spikesBtn.style.borderColor = '#ff5555';
+    spikesBtn.style.boxShadow   = '0 0 15px #dc323288';
+    spikesBtn.textContent       = '🔥 TRYB KOLCÓW (HARDCORE)';
+    spikesBtn.disabled          = false;
   } else {
-    spikesBtn.style.display = 'none';
+    spikesBtn.style.background  = '#1e1e4a';
+    spikesBtn.style.color       = '#666';
+    spikesBtn.style.borderColor = '#333';
+    spikesBtn.style.boxShadow   = 'none';
+    spikesBtn.textContent       = `🔒 TRYB KOLCÓW (${unlockedCount}/${totalCount})`;
+    spikesBtn.disabled          = true;
   }
 }
 
@@ -683,6 +699,7 @@ lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); })
 const lobbySpikes = document.getElementById('lobbySpikes');
 async function onLobbySpikes() {
   if (lobbyPlayGuard) return;
+  if (unlockedSkins.length < CHAR_KEYS.length) return;
   lobbyPlayGuard = true;
   computeSessionParams();
   await applyActiveSkin(activeSkin);
