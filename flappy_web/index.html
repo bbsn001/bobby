@@ -332,7 +332,8 @@ let uiCacheReady = false;
 function buildUICache() {
   uiCacheCanvas.width = GW; uiCacheCanvas.height = GH;
   const uctx = uiCacheCanvas.getContext('2d');
-  uctx.font = 'bold 52px Arial'; uctx.fillStyle = '#ffd700'; uctx.textAlign = 'center';
+  uctx.textAlign = 'center';
+  uctx.font = 'bold 52px Arial'; uctx.fillStyle = '#ffd700';
   uctx.fillText('Bobby Bird', GW/2, GH/4+10);
   const b = SHOP_BTN;
   uctx.fillStyle = '#1a6aff'; uctx.beginPath(); uctx.roundRect(b.x, b.y, b.w, b.h, 12); uctx.fill();
@@ -1070,8 +1071,9 @@ const FlappyMode = {
     }
 
     if (this.state !== 'waiting') {
-      const isInvincible = performance.now() < flashUntil;
-      if (!isInvincible || ((performance.now() / 150) | 0) % 2 === 0) {
+      const now = performance.now();
+      const isInvincible = now < flashUntil;
+      if (!isInvincible || ((now / 150) | 0) % 2 === 0) {
         drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
       }
     }
@@ -1300,8 +1302,9 @@ const SpikesMode = {
     });
 
     if (this.state !== 'waiting') {
-      const isInvincible = performance.now() < flashUntil;
-      if (playerImg && (!isInvincible || ((performance.now() / 150) | 0) % 2 === 0)) {
+      const now = performance.now();
+      const isInvincible = now < flashUntil;
+      if (playerImg && (!isInvincible || ((now / 150) | 0) % 2 === 0)) {
         ctx.save();
         ctx.translate(this.bird.x + BIRD_SIZE/2, this.bird.y + BIRD_SIZE/2);
         if (this.bird.vx < 0) ctx.scale(-1, 1);
