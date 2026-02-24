@@ -620,6 +620,7 @@ async function onLobbyPlay() {
   await applyActiveSkin(activeSkin);
   SceneManager.changeScene(FlappyMode);
   showGame();
+  setTimeout(() => { lobbyPlayGuard = false; }, 500);
 }
 
 const lobbyPlay = document.getElementById('lobbyPlay');
@@ -972,6 +973,15 @@ const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
 function hitShopBtn(px, py) {
   const b = SHOP_BTN;
   return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+}
+
+function drawBirdAt(x, y, angle) {
+  if (!playerImg) return;
+  ctx.save();
+  ctx.translate(x + BIRD_SIZE/2, y + BIRD_SIZE/2);
+  ctx.rotate(angle * Math.PI / 180);
+  ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
+  ctx.restore();
 }
 
 let shopFromWaiting = false;
