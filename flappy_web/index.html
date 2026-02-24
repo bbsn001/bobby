@@ -358,20 +358,18 @@ const bgTracks = [
 bgTracks.forEach(t => { t.volume = 0.3; });
 let currentTrack = 0;
 
+// Ustawiamy onended raz, nie przy każdym starcie
+bgTracks[0].onended = () => { currentTrack = 1; bgTracks[1].currentTime = 0; bgTracks[1].play().catch(() => {}); };
+bgTracks[1].onended = () => { currentTrack = 0; bgTracks[0].currentTime = 0; bgTracks[0].play().catch(() => {}); };
+
 function startMusic() {
   const track = bgTracks[currentTrack];
   track.currentTime = 0;
   track.play().catch(e => console.warn('music blocked:', e));
-
-  // Po zakończeniu przełącz na kolejny utwór
-  track.onended = () => {
-    currentTrack = (currentTrack + 1) % bgTracks.length;
-    startMusic();
-  };
 }
 
 function stopMusic() {
-  bgTracks.forEach(t => { t.pause(); t.onended = null; });
+  bgTracks.forEach(t => t.pause());
 }
 
 // ── Strumienie Audio dla trybu Spikes ─────────────────────────────────────────
@@ -1113,7 +1111,8 @@ const SpikesMode = {
   bird: {
     x: GW/2 - BIRD_SIZE/2, y: GH/2,
     vx: 4.5, vy: 0,
-    _r: { x: 0, y: 0, w: BIRD_SIZE - 4, h: BIRD_SIZE - 4 },
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 12, h: BIRD_SIZE - 12 },
+
     jump() { this.vy = JUMP_FORCE; },
     update(dt) {
       const f = dt / 16.667;
@@ -1122,7 +1121,8 @@ const SpikesMode = {
       this.y  += deltaY;
       this.x  += this.vx * f;
     },
-    rect() { this._r.x = this.x + 2; this._r.y = this.y + 2; return this._r; }
+
+    rect() { this._r.x = this.x + 6; this._r.y = this.y + 6; return this._r; }
   },
 
   init() {
@@ -1201,13 +1201,11 @@ const SpikesMode = {
     if (!isInvincible) {
       if (this.bird.x < 30) {
         for (const sp of this.spikesLeft) {
-          _cr.x = 0; _cr.y = sp.y - 16; _cr.w = 24; _cr.h = 32;
-          if (overlaps(br, _cr)) { this.die(); return; }
+          if (overlapsSpike(br, sp.y, 'left')) { this.die(); return; }
         }
       } else if (this.bird.x > GW - BIRD_SIZE - 30) {
         for (const sp of this.spikesRight) {
-          _cr.x = GW - 24; _cr.y = sp.y - 16; _cr.w = 24; _cr.h = 32;
-          if (overlaps(br, _cr)) { this.die(); return; }
+          if (overlapsSpike(br, sp.y, 'right')) { this.die(); return; }
         }
       }
     }
@@ -1303,6 +1301,22 @@ const SpikesMode = {
 // ── Moduły pomocnicze dla scen (dawne funkcje globalne) ───────────────────────
 function overlaps(a, b) {
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+function overlapsSpike(br, spY, side) {
+  const w = 24, h = 16;
+  if (side === 'left') {
+    const tipX = w;
+    if (br.x > tipX) return false;
+    const penetration = tipX - br.x;
+    const allowedY = h * Math.min(1, penetration / w);
+    return (br.y <= spY + allowedY && br.y + br.h >= spY - allowedY);
+  } else {
+    const tipX = GW - w;
+    if (br.x + br.w < tipX) return false;
+    const penetration = (br.x + br.w) - tipX;
+    const allowedY = h * Math.min(1, penetration / w);
+    return (br.y <= spY + allowedY && br.y + br.h >= spY - allowedY);
+  }
 }
 function txt(context, str, x, y, font, color, align = 'center') {
   context.font = font; context.fillStyle = color; context.textAlign = align;
