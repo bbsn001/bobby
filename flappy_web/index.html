@@ -170,6 +170,13 @@
   </div>
 </div>
 
+<!-- ── DOM HUD overlay ──────────────────────────────────────────────────── -->
+<div id="hud" style="position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:10;display:none">
+  <span id="hudCoins" style="position:absolute;top:10px;left:10px;color:#ffd700;font:bold 15px Arial">\uD83C\uDFB50</span>
+  <span id="hudScore" style="position:absolute;top:6px;right:10px;color:#fff;font:bold 28px Arial">0</span>
+  <span id="hudHeart" style="position:absolute;top:30px;left:10px;font:15px Arial"></span>
+</div>
+
 <!-- ── Game canvas (hidden until game starts) ───────────────────────────── -->
 <canvas id="gameCanvas" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) translateZ(0)"></canvas>
 
@@ -411,6 +418,7 @@ function hideAll() {
   lobbyScreen.style.display = 'none';
   shopScreen.style.display  = 'none';
   canvas.style.display      = 'none';
+  hudEl.style.display       = 'none';
 }
 function showLobby() {
   hideAll();
@@ -425,6 +433,7 @@ function showShop() {
 function showGame() {
   hideAll();
   canvas.style.display = 'block';
+  hudEl.style.display  = 'block';
   resize();
   startGameLoop();
 }
@@ -544,6 +553,7 @@ function onShopBack() {
     shopFromWaiting = false;
     hideAll();
     canvas.style.display = 'block';
+    hudEl.style.display  = 'block';
     resize();
     // stay in 'waiting' state — loop is already running
   } else {
@@ -635,9 +645,29 @@ let pipeTimer  = 0;
 let gameOverAt = 0;
 let leaderboard = [], leaderboardLoading = false;
 
-// HUD text cache — avoid per-frame string concatenation
-let _hud_coins = -1, _hud_coinsStr = '';
-let _hud_score = -1, _hud_scoreStr = '';
+// DOM HUD elements
+const hudEl      = document.getElementById('hud');
+const hudCoinsEl = document.getElementById('hudCoins');
+const hudScoreEl = document.getElementById('hudScore');
+const hudHeartEl = document.getElementById('hudHeart');
+let _hud_coins = -1, _hud_score = -1, _hud_extra = null;
+
+function updateHUD() {
+  if (_hud_coins !== playerCoins) {
+    _hud_coins = playerCoins;
+    hudCoinsEl.textContent = '\uD83C\uDFB5' + playerCoins;
+  }
+  if (_hud_score !== score) {
+    _hud_score = score;
+    hudScoreEl.textContent = score;
+  }
+  const heartState = S_EXTRA ? (extraLifeAvail ? '\u2665' : '\u2661') : '';
+  if (_hud_extra !== heartState) {
+    _hud_extra = heartState;
+    hudHeartEl.textContent = heartState;
+    hudHeartEl.style.color = (S_EXTRA && extraLifeAvail) ? '#dc3232' : '#444';
+  }
+}
 
 const bird = {
   x: 80, y: GH / 2, vy: 0,
@@ -657,6 +687,7 @@ function initNewSession() {
   pipeTimer = 0; score = 0;
   leaderboard = []; leaderboardLoading = false; lbCacheReady = false;
   extraLifeAvail = S_EXTRA; flashUntil = 0;
+  _hud_coins = -1; _hud_score = -1; _hud_extra = null;
   state = 'waiting';
   stopMusic();
 }
@@ -847,16 +878,7 @@ function draw() {
   if (state !== 'waiting')
     drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
 
-  // ── HUD (cached strings to avoid per-frame concatenation) ────────────────
-  if (_hud_coins !== playerCoins) { _hud_coins = playerCoins; _hud_coinsStr = '\uD83C\uDFB5' + playerCoins; }
-  if (_hud_score !== score)       { _hud_score = score;       _hud_scoreStr = String(score); }
-  txt(_hud_coinsStr, 8, 22, '15px Arial', '#ffd700', 'left');
-  txt(_hud_scoreStr, GW-8, 22, 'bold 28px Arial', '#fff', 'right');
-
-  // Extra-life heart (pod coinami)
-  if (S_EXTRA)
-    txt(extraLifeAvail ? '\u2665' : '\u2661', 8, 42, '15px Arial',
-        extraLifeAvail ? '#dc3232' : '#444', 'left');
+  updateHUD();
 
   if      (state === 'waiting')  drawWaiting();
   else if (state === 'gameover') drawGameOver();
@@ -899,7 +921,7 @@ function loop(now) {
   const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
   lastTime = now;
   update(dt);
-  draw();
+  if (state === 'playing' || state === 'waiting' || state === 'gameover') draw();
   requestAnimationFrame(loop);
 }
 function startGameLoop() {
