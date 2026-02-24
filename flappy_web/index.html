@@ -968,6 +968,12 @@ function txt(context, str, x, y, font, color, align = 'center') {
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
 const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
+
+function hitShopBtn(px, py) {
+  const b = SHOP_BTN;
+  return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+}
+
 let shopFromWaiting = false;
 function showShopFromWaiting() { shopFromWaiting = true; showShop(); }
 
