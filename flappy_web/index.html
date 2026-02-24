@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Bobby Bird</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0a2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bobby Bird" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -123,11 +129,21 @@
 <!-- ── Nick screen ──────────────────────────────────────────────────────── -->
 <div id="nickScreen" class="screen">
   <div class="screen-inner">
-    <div class="screen-title">&#x1F426; Bobby Bird</div>
-    <div class="screen-sub">Wpisz nick, żeby grać</div>
+    <div class="screen-title">🐦 Bobby Bird</div>
+    <div class="screen-sub">Zaloguj się lub stwórz konto (z PINem)</div>
+
     <input id="nickInput" class="big-input" type="text" maxlength="16"
       placeholder="Twój nick"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+
+    <input id="pinInput" class="big-input" type="password" maxlength="4"
+      inputmode="numeric" placeholder="PIN (4 cyfry)"
+      autocomplete="off" style="margin-bottom:8px" />
+
+    <div id="loginError" style="color:#dc3232; font-size:14px; font-weight:bold; margin-bottom:12px; display:none;">
+      Błędny PIN!
+    </div>
+
     <button id="nickConfirm" class="btn btn-yellow">DALEJ →</button>
   </div>
 </div>
@@ -205,71 +221,64 @@ let lbCacheReady = false;
 
 // ── Character definitions ─────────────────────────────────────────────────────
 const CHARACTERS = {
-  bobby:    { name:'Bobby',     img:'bobby.png',    price:0,   col:'soundcloud.png',
-              bonuses:[],                         desc:'brak bonusów' },
-  bialek:   { name:'Bialek',    img:'bialek.png',   price:30,  col:'nina.png',
-              bonuses:['gap+20'],                 desc:'+szerszy przelot' },
-  deadman:  { name:'Deadman',   img:'deadman.png',  price:60,  col:'grammy.png',
-              bonuses:['speed-10'],               desc:'rury −10%' },
-  krystian: { name:'Krystian',  img:'krystian.png', price:100, col:'diormind.png',
-              bonuses:['double'],                 desc:'×2 punkty' },
-  johnny:   { name:'Johnny',    img:'johnny.png',   price:150, col:'joint.png',
-              bonuses:['gap+20','speed-10'],      desc:'+przelot, rury −10%' },
-  kolin:    { name:'Kolin',     img:'kolin.png',    price:200, col:'strzykawka.png',
-              bonuses:['extralife'],              desc:'+1 życie' },
-  kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:250, col:'dziecko.png',
-              bonuses:['speed-15','double'],      desc:'rury −15%, ×2 pkt' },
-  reczu:    { name:'Reczu',     img:'reczu.png',    price:300, col:'kutas.png',
-              bonuses:['gap+30','extralife'],     desc:'+przelot 30px, +1 życie' },
-  szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:400, col:'scat.png',
-              bonuses:['speed-20','gap+30','double'], desc:'rury −20%, +przelot 30px, ×2 pkt' },
-  tom:      { name:'Tom',       img:'tom.png',      price:500, col:'wozek.png',
-              bonuses:['extralife','double','speed-20'], desc:'+życie, ×2 pkt, rury −20%' },
-  majka:    { name:'Majka 👑',  img:'majka.png',    price:666, col:'onlyfans.png',
-              bonuses:['gap+60','speed-40','double','extralife'],
-              desc:'WSZYSTKO: −40% rury, +60px, ×2, +życie', special:true },
+  bobby:    { name:'Bobby',     img:'bobby.png',    price:0,    col:'soundcloud.png',
+              bonuses:[],                              desc:'brak bonusów' },
+  bialek:   { name:'Bialek',    img:'bialek.png',   price:50,   col:'nina.png',
+              bonuses:['gap+10'],                     desc:'przelot +10px' },
+  deadman:  { name:'Deadman',   img:'deadman.png',  price:100,  col:'grammy.png',
+              bonuses:['speed-5'],                    desc:'rury −5%' },
+  krystian: { name:'Krystian',  img:'krystian.png', price:200,  col:'diormind.png',
+              bonuses:['double'],                     desc:'×2 punkty' },
+  johnny:   { name:'Johnny',    img:'johnny.png',   price:350,  col:'joint.png',
+              bonuses:['gap+10','speed-5'],           desc:'przelot +10px, rury −5%' },
+  kolin:    { name:'Kolin',     img:'kolin.png',    price:500,  col:'strzykawka.png',
+              bonuses:['extralife'],                  desc:'+1 życie' },
+  kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:750,  col:'dziecko.png',
+              bonuses:['speed-10','double'],          desc:'rury −10%, ×2 pkt' },
+  reczu:    { name:'Reczu',     img:'reczu.png',    price:1000, col:'kutas.png',
+              bonuses:['gap+20','extralife'],         desc:'przelot +20px, +1 życie' },
+  szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:1500, col:'scat.png',
+              bonuses:['speed-10','gap+20','double'], desc:'rury −10%, przelot +20px, ×2' },
+  tom:      { name:'Tom',       img:'tom.png',      price:2000, col:'wozek.png',
+              bonuses:['extralife','double','speed-10'], desc:'+życie, ×2 pkt, rury −10%' },
+  majka:    { name:'Majka 👑',  img:'majka.png',    price:3500, col:'onlyfans.png',
+              bonuses:['gap+30','speed-15','double','extralife'],
+              desc:'WSZYSTKO: −15%, +30px, ×2, +życie', special:true },
 };
 const CHAR_KEYS = Object.keys(CHARACTERS);
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
-async function loadPlayerData(nick) {
+async function loadPlayerData(nick, pin) {
   try {
     const snap = await getDoc(doc(db, 'leaderboard', nick));
     if (snap.exists()) {
       const d = snap.data();
-      // Normalize unlockedSkins — Firestore może zwrócić array, string-JSON lub undefined
+      if (d.pin && d.pin !== pin) return { error: 'invalid_pin' };
+      if (!d.pin) await setDoc(doc(db, 'leaderboard', nick), { pin }, { merge: true });
       let skins = d.unlockedSkins;
       if (!Array.isArray(skins)) {
-        if (typeof skins === 'string') {
-          try { skins = JSON.parse(skins); } catch { skins = ['bobby']; }
-          if (!Array.isArray(skins)) skins = ['bobby'];
-        } else {
-          skins = ['bobby'];
-        }
+        if (typeof skins === 'string') { try { skins = JSON.parse(skins); } catch { skins = ['bobby']; } }
+        if (!Array.isArray(skins)) skins = ['bobby'];
       }
-      return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby' };
+      return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby', score: d.score ?? 0 };
+    } else {
+      await setDoc(doc(db, 'leaderboard', nick), {
+        nick, score: 0, coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', pin, date: new Date()
+      });
     }
   } catch(e) { console.warn('loadPlayerData:', e); }
-  return { coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby' };
+  return { coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', score: 0 };
 }
 
-async function saveProgress() {
+async function saveProgress(roundScore = playerBestScore) {
   try {
-    await setDoc(doc(db, 'leaderboard', playerNick),
-      { coins: playerCoins, unlockedSkins, activeSkin }, { merge: true });
-  } catch(e) { console.warn('saveProgress:', e); }
-}
-
-async function saveScoreAndProgress(roundScore) {
-  try {
-    const ref  = doc(db, 'leaderboard', playerNick);
-    const snap = await getDoc(ref);
-    const best = snap.exists() ? Math.max(roundScore, snap.data().score ?? 0) : roundScore;
+    if (roundScore > playerBestScore) playerBestScore = roundScore;
+    const ref = doc(db, 'leaderboard', playerNick);
     await setDoc(ref, {
-      nick: playerNick, score: best, date: new Date(),
-      coins: playerCoins, unlockedSkins, activeSkin
+      nick: playerNick, score: playerBestScore, date: new Date(),
+      coins: playerCoins, unlockedSkins, activeSkin, pin: playerPin
     }, { merge: true });
-  } catch(e) { console.warn('saveScoreAndProgress:', e); }
+  } catch(e) { console.warn('saveProgress:', e); }
 }
 
 async function getTopScores() {
@@ -419,7 +428,9 @@ async function applyActiveSkin(key) {
 let playerNick    = '';
 let playerCoins   = 0;
 let unlockedSkins = ['bobby'];
-let activeSkin    = 'bobby';
+let activeSkin      = 'bobby';
+let playerBestScore = 0; // Pamięć RAM dla najlepszego wyniku
+let playerPin       = '';
 
 // ── Session params (computed from active skin) ────────────────────────────────
 let S_GAP = PIPE_GAP, S_SPEED = PIPE_SPEED, S_DOUBLE = false, S_EXTRA = false;
@@ -427,9 +438,8 @@ let S_INTERVAL = PIPE_INTERVAL;
 
 function computeSessionParams() {
   const b = CHARACTERS[activeSkin].bonuses;
-  S_GAP  = PIPE_GAP + (b.includes('gap+60')?60 : b.includes('gap+30')?30 : b.includes('gap+20')?20 : 0);
-  S_SPEED = PIPE_SPEED * (b.includes('speed-40')?.60 : b.includes('speed-20')?.80
-                        : b.includes('speed-15')?.85 : b.includes('speed-10')?.90 : 1);
+  S_GAP    = PIPE_GAP + (b.includes('gap+30') ? 30 : b.includes('gap+20') ? 20 : b.includes('gap+10') ? 10 : 0);
+  S_SPEED  = PIPE_SPEED * (b.includes('speed-15') ? 0.85 : b.includes('speed-10') ? 0.90 : b.includes('speed-5') ? 0.95 : 1);
   S_DOUBLE = b.includes('double');
   S_EXTRA  = b.includes('extralife');
   S_INTERVAL = PIPE_INTERVAL * (PIPE_SPEED / S_SPEED);
@@ -443,6 +453,30 @@ let flashUntil     = 0;
 const nickScreen  = document.getElementById('nickScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const shopScreen  = document.getElementById('shopScreen');
+
+// ── DOM HUD elements ──────────────────────────────────────────────────────────
+const hudEl      = document.getElementById('hud');
+const hudCoinsEl = document.getElementById('hudCoins');
+const hudScoreEl = document.getElementById('hudScore');
+const hudHeartEl = document.getElementById('hudHeart');
+let _hud_coins = -1, _hud_score = -1, _hud_extra = null;
+
+function updateHUD(currentScore) {
+  if (_hud_coins !== playerCoins) {
+    _hud_coins = playerCoins;
+    hudCoinsEl.textContent = '\uD83C\uDFB5' + playerCoins;
+  }
+  if (_hud_score !== currentScore) {
+    _hud_score = currentScore;
+    hudScoreEl.textContent = currentScore;
+  }
+  const heartState = S_EXTRA ? (extraLifeAvail ? '\u2665' : '\u2661') : '';
+  if (_hud_extra !== heartState) {
+    _hud_extra = heartState;
+    hudHeartEl.textContent = heartState;
+    hudHeartEl.style.color = (S_EXTRA && extraLifeAvail) ? '#dc3232' : '#444';
+  }
+}
 
 let isGameCanvasVisible = false;
 
@@ -472,22 +506,38 @@ function showGame() {
 
 // ── Nick screen ───────────────────────────────────────────────────────────────
 const nickInput   = document.getElementById('nickInput');
+const pinInput    = document.getElementById('pinInput');
+const loginError  = document.getElementById('loginError');
 const nickConfirm = document.getElementById('nickConfirm');
 let nickDone = false;
 
 async function onNickConfirm() {
   if (nickDone) return;
   const val = nickInput.value.trim();
-  if (!val) { nickInput.classList.add('error'); return; }
-  nickInput.classList.remove('error');
-  nickDone = true;
+  const pin = pinInput.value.trim();
 
+  if (!val) { nickInput.classList.add('error'); return; }
+  if (!pin || pin.length < 4) { pinInput.classList.add('error'); return; }
+
+  nickInput.classList.remove('error');
+  pinInput.classList.remove('error');
+  loginError.style.display = 'none';
+
+  const data = await loadPlayerData(val, pin);
+  if (data.error === 'invalid_pin') {
+    loginError.style.display = 'block';
+    return;
+  }
+
+  nickDone = true;
   playerNick = val.slice(0, 16);
-  const data = await loadPlayerData(playerNick);
-  playerCoins   = data.coins;
-  unlockedSkins = data.unlockedSkins;
+  playerPin  = pin;
+
+  playerCoins     = data.coins;
+  unlockedSkins   = data.unlockedSkins;
+  playerBestScore = data.score;
   if (!unlockedSkins.includes('bobby')) unlockedSkins.push('bobby');
-  activeSkin    = unlockedSkins.includes(data.activeSkin) ? data.activeSkin : 'bobby';
+  activeSkin = unlockedSkins.includes(data.activeSkin) ? data.activeSkin : 'bobby';
 
   await applyActiveSkin(activeSkin);
   showLobby();
@@ -568,7 +618,7 @@ async function onLobbyPlay() {
   lobbyPlayGuard = true;
   computeSessionParams();
   await applyActiveSkin(activeSkin);
-  initNewSession();
+  SceneManager.changeScene(FlappyMode);
   showGame();
 }
 
@@ -583,7 +633,7 @@ lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); })
 function onShopBack() {
   if (shopFromWaiting) {
     shopFromWaiting = false;
-    computeSessionParams(); initNewSession();
+    computeSessionParams(); SceneManager.changeScene(FlappyMode);
     hideAll();
     canvas.style.display = hudEl.style.display = 'block';
     isGameCanvasVisible = true;
@@ -656,270 +706,272 @@ function renderShop() {
   });
 }
 
-// ── Game state ────────────────────────────────────────────────────────────────
-let state  = 'waiting';
-let score  = 0;
-const MAX_PIPES = 6;
-const pipePool = Array.from({ length: MAX_PIPES }, () => ({
-  active: false, x: 0, topH: 0, botY: 0, passed: false, collected: false
-}));
-function spawnPipe() {
-  const p = pipePool.find(pipe => !pipe.active);
-  if (!p) return;
-  const gc = GH/4 + Math.random() * (GH/2);
-  p.active = true; p.x = GW;
-  p.topH = gc - S_GAP/2; p.botY = gc + S_GAP/2;
-  p.passed = false; p.collected = false;
-}
-let pipeTimer  = 0;
-let gameOverAt = 0;
-let leaderboard = [], leaderboardLoading = false;
+// ── Scene Manager (Maszyna Stanów) ────────────────────────────────────────────
+const SceneManager = {
+  activeScene: null,
 
-// DOM HUD elements
-const hudEl      = document.getElementById('hud');
-const hudCoinsEl = document.getElementById('hudCoins');
-const hudScoreEl = document.getElementById('hudScore');
-const hudHeartEl = document.getElementById('hudHeart');
-let _hud_coins = -1, _hud_score = -1, _hud_extra = null;
+  changeScene(newScene) {
+    if (this.activeScene && this.activeScene.cleanup) this.activeScene.cleanup();
+    this.activeScene = newScene;
+    if (this.activeScene.init) this.activeScene.init();
+  },
 
-function updateHUD() {
-  if (_hud_coins !== playerCoins) {
-    _hud_coins = playerCoins;
-    hudCoinsEl.textContent = '\uD83C\uDFB5' + playerCoins;
-  }
-  if (_hud_score !== score) {
-    _hud_score = score;
-    hudScoreEl.textContent = score;
-  }
-  const heartState = S_EXTRA ? (extraLifeAvail ? '\u2665' : '\u2661') : '';
-  if (_hud_extra !== heartState) {
-    _hud_extra = heartState;
-    hudHeartEl.textContent = heartState;
-    hudHeartEl.style.color = (S_EXTRA && extraLifeAvail) ? '#dc3232' : '#444';
-  }
-}
+  update(dt) {
+    if (this.activeScene && this.activeScene.update) this.activeScene.update(dt);
+  },
 
-const bird = {
-  x: 80, y: GH / 2, vy: 0,
-  _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
-  jump()     { this.vy = JUMP_FORCE; },
-  update(dt) { const f = dt/16.667; this.vy += GRAVITY*f; this.y += this.vy*f; },
-  rect()     { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
+  draw() {
+    if (this.activeScene && this.activeScene.draw) this.activeScene.draw();
+  },
+
+  onAction(px, py) {
+    if (this.activeScene && this.activeScene.onAction) this.activeScene.onAction(px, py);
+  }
 };
 
-// Reusable scratch rects — no per-frame allocation
-const _cr = { x:0, y:0, w:COL_W,      h:0 };
-const _pr = { x:0, y:0, w:PIPE_WIDTH, h:0 };
+// ── Kartridż 1: Flappy Mode (Klasyczny Bobby Bird) ────────────────────────────
+const FlappyMode = {
+  state: 'waiting',
+  score: 0,
+  pipeTimer: 0,
+  gameOverAt: 0,
+  pipePool: Array.from({ length: 6 }, () => ({
+    active: false, x: 0, topH: 0, botY: 0, passed: false, collected: false
+  })),
 
-function initNewSession() {
-  bird.x = 80; bird.y = GH/2; bird.vy = 0;
-  for (let i = 0; i < MAX_PIPES; i++) pipePool[i].active = false;
-  pipeTimer = 0; score = 0;
-  leaderboard = []; leaderboardLoading = false; lbCacheReady = false;
-  extraLifeAvail = S_EXTRA; flashUntil = 0;
-  _hud_coins = -1; _hud_score = -1; _hud_extra = null;
-  state = 'waiting';
-  stopMusic();
-}
-function resetGame() {   // within-session reset (after regular game over)
-  bird.x = 80; bird.y = GH/2; bird.vy = 0;
-  for (let i = 0; i < MAX_PIPES; i++) pipePool[i].active = false;
-  pipeTimer = 0; score = 0;
-  leaderboard = []; leaderboardLoading = false;
-  extraLifeAvail = S_EXTRA; flashUntil = 0;
-  stopMusic(); state = 'waiting';
-}
-function startGame() {
-  state = 'playing';
-  bird.jump();
-  startMusic();
-}
-async function die() {
-  // Extra life shield
-  if (extraLifeAvail) {
-    extraLifeAvail = false;
-    flashUntil = performance.now() + 1200;
-    return;
-  }
-  stopMusic();
-  gameOverAt = performance.now();
-  state = 'gameover';                      // zwykła śmierć → game over (auto-reset 3s)
-  leaderboardLoading = true;
-  leaderboard = [];
-  await saveScoreAndProgress(score);
-  leaderboard = await getTopScores();
-  leaderboardLoading = false;
-  lbCacheCanvas.width = GW; lbCacheCanvas.height = 300;
-  lbCtx.clearRect(0, 0, GW, 300);
-  if (!leaderboard.length) {
-    lbCtx.font = '13px Arial'; lbCtx.fillStyle = '#888'; lbCtx.textAlign = 'center';
-    lbCtx.fillText('Brak wyników', GW/2, 22);
-  } else {
-    leaderboard.forEach((e, i) => {
-      const ry = 20 + i * 22;
-      const color = e.nick === playerNick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
-      lbCtx.font = '13px Arial'; lbCtx.fillStyle = color;
-      lbCtx.textAlign = 'left';  lbCtx.fillText(`${i+1}. ${e.nick}`, 22, ry);
-      lbCtx.textAlign = 'right'; lbCtx.fillText(String(e.score), GW-22, ry);
-    });
-  }
-  lbCacheReady = true;
-}
+  // Hermetyzacja ptaka tylko dla tego trybu
+  bird: {
+    x: 80, y: 300, vy: 0,
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
+    jump()     { this.vy = JUMP_FORCE; },
+    update(dt) {
+      const f = dt / 16.667;
+      const deltaY = this.vy * f + 0.5 * GRAVITY * f * f;
+      this.vy += GRAVITY * f;
+      this.y  += deltaY;
+    },
+    rect() { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
+  },
 
+  // Inicjalizacja sesji (Zastępuje initNewSession i resetGame)
+  init() {
+    this.resetState();
+    stopMusic();
+    updateHUD(this.score); // Inicjalizacja HUD
+  },
+
+  resetState() {
+    this.bird.x = 80; this.bird.y = GH/2; this.bird.vy = 0;
+    this.pipePool.forEach(p => p.active = false);
+    this.pipeTimer = 0;
+    this.score = 0;
+    leaderboard = [];
+    leaderboardLoading = false;
+    lbCacheReady = false;
+    extraLifeAvail = S_EXTRA;
+    flashUntil = 0;
+    this.state = 'waiting';
+  },
+
+  startGame() {
+    this.state = 'playing';
+    this.bird.jump();
+    startMusic();
+  },
+
+  async die() {
+    if (extraLifeAvail) {
+      extraLifeAvail = false;
+      flashUntil = performance.now() + 1200;
+      return;
+    }
+    stopMusic();
+    this.gameOverAt = performance.now();
+    this.state = 'gameover';
+    leaderboardLoading = true;
+    leaderboard = [];
+
+    saveProgress(this.score);
+
+    if (this.score > playerBestScore) {
+      playerBestScore = this.score;
+      const existingMe = cachedLeaderboard.find(e => e.nick === playerNick);
+      if (existingMe) existingMe.score = this.score;
+      else cachedLeaderboard.push({ nick: playerNick, score: this.score });
+      cachedLeaderboard.sort((a, b) => b.score - a.score);
+      cachedLeaderboard = cachedLeaderboard.slice(0, 10);
+    }
+
+    const now = performance.now();
+    if (now - lastLeaderboardFetch > 60000 || cachedLeaderboard.length === 0) {
+      cachedLeaderboard = await getTopScores();
+      lastLeaderboardFetch = now;
+    }
+
+    leaderboard = cachedLeaderboard;
+    leaderboardLoading = false;
+    this.renderLeaderboardCache();
+  },
+
+  renderLeaderboardCache() {
+    lbCacheCanvas.width = GW; lbCacheCanvas.height = 300;
+    lbCtx.clearRect(0, 0, GW, 300);
+    if (!leaderboard.length) {
+      txt(lbCtx, 'Brak wyników', GW/2, 22, '13px Arial', '#888', 'center');
+    } else {
+      leaderboard.forEach((e, i) => {
+        const ry = 20 + i * 22;
+        const color = e.nick === playerNick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
+        txt(lbCtx, `${i+1}. ${e.nick}`, 22, ry, '13px Arial', color, 'left');
+        txt(lbCtx, String(e.score), GW-22, ry, '13px Arial', color, 'right');
+      });
+    }
+    lbCacheReady = true;
+  },
+
+  spawnPipe() {
+    const p = this.pipePool.find(pipe => !pipe.active);
+    if (!p) return;
+    const gc = GH/4 + Math.random() * (GH/2);
+    p.active = true; p.x = GW;
+    p.topH = gc - S_GAP/2; p.botY = gc + S_GAP/2;
+    p.passed = false; p.collected = false;
+  },
+
+  update(dt) {
+    if (this.state === 'gameover' || this.state !== 'playing') return;
+
+    this.bird.update(dt);
+    this.pipeTimer += dt;
+    if (this.pipeTimer >= S_INTERVAL) { this.spawnPipe(); this.pipeTimer = 0; }
+
+    const f = dt / 16.667;
+    const br = this.bird.rect();
+
+    for (let i = 0; i < this.pipePool.length; i++) {
+      const p = this.pipePool[i];
+      if (!p.active) continue;
+
+      p.x -= S_SPEED * f;
+      if (!p.passed && p.x + PIPE_WIDTH < this.bird.x) p.passed = true;
+      if (p.x + PIPE_WIDTH <= 0) { p.active = false; continue; }
+
+      if (!p.collected) {
+        _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2;
+        _cr.y = (p.topH + p.botY)/2 - collectH/2;
+        _cr.h = collectH;
+        if (overlaps(br, _cr)) {
+          p.collected = true;
+          const pts = S_DOUBLE ? 2 : 1;
+          this.score += pts; playerCoins += pts;
+          playKaching(); playSpecialSound(this.score);
+        }
+      }
+
+      _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
+      if (overlaps(br, _pr)) { this.die(); return; }
+      _pr.y = p.botY; _pr.h = GH - p.botY;
+      if (overlaps(br, _pr)) { this.die(); return; }
+    }
+
+    if (this.bird.y > GH || this.bird.y < -BIRD_SIZE) { this.die(); return; }
+  },
+
+  draw() {
+    if (this.state === 'waiting') {
+      ctx.globalAlpha = 0.65;
+      ctx.drawImage(bgCacheCanvas, 0, 0);
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.drawImage(bgCacheCanvas, 0, 0);
+    }
+
+    ctx.fillStyle = '#22b422';
+    for (const p of this.pipePool) {
+      if (!p.active) continue;
+      if (p.topH > 0) ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
+      if (p.botY < GH) ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
+    }
+
+    ctx.fillStyle = '#127812';
+    const _cap = 28, _bw = PIPE_WIDTH + 20;
+    for (const p of this.pipePool) {
+      if (!p.active) continue;
+      const bx = p.x - 10;
+      if (p.topH > 0) ctx.fillRect(bx, p.topH - _cap, _bw, _cap);
+      if (p.botY < GH) ctx.fillRect(bx, p.botY, _bw, _cap);
+    }
+
+    if (collectImg) {
+      for (const p of this.pipePool) {
+        if (p.active && !p.collected)
+          ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
+      }
+    }
+
+    if (this.state !== 'waiting') drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
+
+    updateHUD(this.score);
+
+    if (this.state === 'waiting') this.drawWaiting();
+    else if (this.state === 'gameover') this.drawGameOver();
+  },
+
+  drawWaiting() {
+    txt(ctx, 'Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
+    const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
+    drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
+    if (Math.floor(performance.now()/600) % 2 === 0)
+      txt(ctx, 'Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
+
+    const b = SHOP_BTN;
+    ctx.fillStyle = '#1a6aff'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    txt(ctx, '\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
+  },
+
+  drawGameOver() {
+    overlay(0.62);
+    txt(ctx, 'GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232');
+    txt(ctx, 'Score: '+this.score, GW/2, 108, 'bold 26px Arial', '#ffd700');
+    ctx.strokeStyle='#444'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(20,122); ctx.lineTo(GW-20,122); ctx.stroke();
+
+    txt(ctx, '\uD83C\uDFC6 TOP 10', GW/2, 138, 'bold 15px Arial', '#ffd700');
+    if (leaderboardLoading) txt(ctx, 'Ładowanie...', GW/2, 138+22, '13px Arial', '#888');
+    else if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, 138);
+
+    ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
+    const canRestart = (performance.now() - this.gameOverAt) > 1000;
+    txt(ctx, canRestart ? 'Tapnij, aby zagrać ponownie' : 'Czekaj...', GW/2, 402, '15px Arial', canRestart ? '#fff' : '#555');
+  },
+
+  onAction(px, py) {
+    if (this.state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
+      showShopFromWaiting(); return;
+    }
+    if (this.state === 'waiting')  { this.startGame(); return; }
+    if (this.state === 'playing')  { this.bird.jump(); return; }
+    if (this.state === 'gameover') {
+      if (performance.now() - this.gameOverAt > 1000) this.resetState();
+      return;
+    }
+  }
+};
+
+// ── Moduły pomocnicze dla scen (dawne funkcje globalne) ───────────────────────
 function overlaps(a, b) {
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 }
-
-// ── Update ────────────────────────────────────────────────────────────────────
-function update(dt) {
-  if (state === 'gameover') {
-    if ((performance.now() - gameOverAt) / 1000 >= 3) resetGame();
-    return;
-  }
-  if (state !== 'playing') return;
-
-  bird.update(dt);
-
-  pipeTimer += dt;
-  if (pipeTimer >= S_INTERVAL) { spawnPipe(); pipeTimer = 0; }
-
-  const f = dt / 16.667;
-  const br = bird.rect();
-  for (let i = 0; i < MAX_PIPES; i++) {
-    const p = pipePool[i];
-    if (!p.active) continue;
-    p.x -= S_SPEED * f;
-    if (!p.passed && p.x + PIPE_WIDTH < bird.x) p.passed = true;
-    if (p.x + PIPE_WIDTH <= 0) { p.active = false; continue; }
-    if (!p.collected) {
-      _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2;
-      _cr.y = (p.topH + p.botY)/2 - collectH/2;
-      _cr.h = collectH;
-      if (overlaps(br, _cr)) {
-        p.collected = true;
-        const pts = S_DOUBLE ? 2 : 1;
-        score += pts; playerCoins += pts;
-        playKaching(); playSpecialSound(score);
-      }
-    }
-    _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
-    if (overlaps(br, _pr)) { die(); return; }
-    _pr.y = p.botY; _pr.h = GH - p.botY;
-    if (overlaps(br, _pr)) { die(); return; }
-  }
-  if (bird.y > GH || bird.y < -BIRD_SIZE) { die(); return; }
-}
-
-// ── Draw helpers ──────────────────────────────────────────────────────────────
-function txt(str, x, y, font, color, align = 'center') {
-  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align;
-  ctx.fillText(str, x, y);
+function txt(context, str, x, y, font, color, align = 'center') {
+  context.font = font; context.fillStyle = color; context.textAlign = align;
+  context.fillText(str, x, y);
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
-
-function drawBirdAt(x, y, angle) {
-  ctx.save();
-  ctx.translate(x + BIRD_SIZE/2, y + BIRD_SIZE/2);
-  ctx.rotate(angle * Math.PI / 180);
-  if (playerImg)
-    ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
-  else {
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2-4, 0, Math.PI*2); ctx.fill();
-  }
-  // Red flash on extra-life use
-  const now = performance.now();
-  if (now < flashUntil && Math.floor(now/100) % 2 === 0) {
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#ff2222';
-    ctx.beginPath(); ctx.arc(0, 0, BIRD_SIZE/2, 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-}
-
-function drawLeaderboard(y0) {
-  txt('\uD83C\uDFC6 TOP 10', GW/2, y0, 'bold 15px Arial', '#ffd700');
-  if (leaderboardLoading) { txt('Ładowanie...', GW/2, y0+22, '13px Arial', '#888'); return; }
-  if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, y0);
-}
-
-// ── Screens ───────────────────────────────────────────────────────────────────
-// Shop button rect on waiting screen (right-bottom)
 const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
+let shopFromWaiting = false;
+function showShopFromWaiting() { shopFromWaiting = true; showShop(); }
 
-function drawWaiting() {
-  txt('Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
-  const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
-  drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
-  if (Math.floor(performance.now()/600) % 2 === 0)
-    txt('Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
-
-  // Shop button
-  const b = SHOP_BTN;
-  ctx.fillStyle = '#1a6aff';
-  ctx.beginPath();
-  ctx.roundRect(b.x, b.y, b.w, b.h, 12);
-  ctx.fill();
-  txt('\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
-}
-function drawGameOver() {
-  overlay(0.62);
-  txt('GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232');
-  txt('Score: '+score, GW/2, 108, 'bold 26px Arial', '#ffd700');
-  ctx.strokeStyle='#444'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(20,122); ctx.lineTo(GW-20,122); ctx.stroke();
-  drawLeaderboard(138);
-  ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
-  const rem = Math.max(0, 3-(performance.now()-gameOverAt)/1000).toFixed(1);
-  txt('Restart za '+rem+'s  •  Tap aby teraz', GW/2, 402, '15px Arial', '#888');
-}
-// ── Main draw ─────────────────────────────────────────────────────────────────
-function draw() {
-  if (state === 'waiting') {
-    ctx.globalAlpha = 0.65;
-    ctx.drawImage(bgCacheCanvas, 0, 0);
-    ctx.globalAlpha = 1.0;
-  } else {
-    ctx.drawImage(bgCacheCanvas, 0, 0);
-  }
-
-  // Pass 1: pipe bodies
-  ctx.fillStyle = '#22b422';
-  for (let i = 0; i < MAX_PIPES; i++) {
-    const p = pipePool[i];
-    if (!p.active) continue;
-    if (p.topH > 0) ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH);
-    if (p.botY < GH) ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
-  }
-  // Pass 2: pipe caps
-  ctx.fillStyle = '#127812';
-  const _cap = 28, _bw = PIPE_WIDTH + 20;
-  for (let i = 0; i < MAX_PIPES; i++) {
-    const p = pipePool[i];
-    if (!p.active) continue;
-    const bx = p.x - 10;
-    if (p.topH > 0) ctx.fillRect(bx, p.topH - _cap, _bw, _cap);
-    if (p.botY < GH) ctx.fillRect(bx, p.botY, _bw, _cap);
-  }
-  // Pass 3: collectibles
-  if (collectImg) {
-    for (let i = 0; i < MAX_PIPES; i++) {
-      const p = pipePool[i];
-      if (p.active && !p.collected)
-        ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
-    }
-  }
-  if (state !== 'waiting')
-    drawBirdAt(bird.x, bird.y, Math.max(-35, Math.min(50, -bird.vy*3)));
-
-  updateHUD();
-
-  if      (state === 'waiting')  drawWaiting();
-  else if (state === 'gameover') drawGameOver();
-}
-
-// ── Input ─────────────────────────────────────────────────────────────────────
+// ── Input Delegator ───────────────────────────────────────────────────────────
 function canvasXY(e) {
   const cx = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - canvasRect.left;
   const cy = (e.clientY ?? e.touches?.[0]?.clientY ?? 0) - canvasRect.top;
@@ -927,56 +979,43 @@ function canvasXY(e) {
   _touchPos.y = cy / canvasRect.height * GH;
   return _touchPos;
 }
-function hitShopBtn(px, py) {
-  const b = SHOP_BTN;
-  return px >= b.x && px <= b.x+b.w && py >= b.y && py <= b.y+b.h;
-}
 
-function onAction(px, py) {
-  if (state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
-    showShopFromWaiting(); return;
-  }
-  if (state === 'waiting')  { startGame(); return; }
-  if (state === 'playing')  { bird.jump(); return; }
-  if (state === 'gameover') { resetGame(); return; }
-}
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); SceneManager.onAction(); }
+});
 
-// Shop from waiting screen — show shop, return to waiting on back
-let shopFromWaiting = false;
-function showShopFromWaiting() {
-  shopFromWaiting = true;
-  showShop();
-}
-document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); onAction(); } });
-canvas.addEventListener('mousedown',  e => { e.preventDefault(); const p = canvasXY(e); onAction(p.x, p.y); });
-canvas.addEventListener('touchstart', e => { e.preventDefault(); const p = canvasXY(e); onAction(p.x, p.y); }, { passive: false });
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  const p = canvasXY(e);
+  SceneManager.onAction(p.x, p.y);
+});
 
 // ── Game loop (starts once, runs forever) ─────────────────────────────────────
 let lastTime = performance.now(), loopRunning = false;
-let accumulator = 0;
-const TIME_STEP = 16.667;
 
 function loop(now) {
   if (!loopRunning) return;
   requestAnimationFrame(loop);
-  let dt = now - lastTime; lastTime = now;
-  if (dt > 100) dt = 100;
+  let dt = now - lastTime;
+  lastTime = now;
+  if (dt > 50) dt = 50;
   if (isGameCanvasVisible) {
-    accumulator += dt;
-    while (accumulator >= TIME_STEP) { update(TIME_STEP); accumulator -= TIME_STEP; }
-    if (state === 'playing' || state === 'waiting' || state === 'gameover') draw();
+    SceneManager.update(dt);
+    SceneManager.draw();
   }
 }
+
 function startGameLoop() {
   if (loopRunning) return;
   loopRunning = true;
   lastTime = performance.now();
-  accumulator = 0;
   requestAnimationFrame(loop);
 }
 
-// ── Visibility change — reset accumulator after tab switch ────────────────────
-document.addEventListener('visibilitychange', () => { lastTime = performance.now(); accumulator = 0; });
+document.addEventListener('visibilitychange', () => {
+  lastTime = performance.now();
+});
 
 // ── Audio prewarm — unlock AudioContext on first user gesture ─────────────────
 let audioUnlocked = false;
@@ -990,6 +1029,14 @@ function unlockAudioOnFirstTouch() {
 }
 document.addEventListener('touchstart', unlockAudioOnFirstTouch, { once: true });
 document.addEventListener('mousedown',  unlockAudioOnFirstTouch, { once: true });
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker zarejestrowany.', reg.scope))
+      .catch(err => console.warn('Rejestracja Service Workera nie powiodła się:', err));
+  });
+}
 </script>
 </body>
 </html>
