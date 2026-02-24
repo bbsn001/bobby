@@ -55,10 +55,26 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+  const url = new URL(req.url);
+
+  if (url.pathname.includes('/assets/')) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        const networked = fetch(req).then((res) => {
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+          return res;
+        }).catch(() => {});
+        return cached || networked;
+      })
+    );
+    return;
+  }
+
   if (req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html')) {
     event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
+
   event.respondWith(
     caches.match(req).then((response) => response || fetch(req))
   );
