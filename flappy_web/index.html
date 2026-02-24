@@ -317,6 +317,7 @@ window.addEventListener('resize', resize);
 const GRAVITY = 0.45, JUMP_FORCE = -9.5, PIPE_SPEED = 2.55;
 const PIPE_GAP = 175, PIPE_WIDTH = 72, PIPE_INTERVAL = 1750;
 const BIRD_SIZE = 60, COL_W = 70;
+const SPIKES_MODE_PRICE = 1000;
 
 // ── Pre-rendered background (stars) ───────────────────────────────────────────
 const STARS = Array.from({ length: 25 }, () => ({
@@ -629,7 +630,6 @@ function updateLobbyUI() {
   const spikesBtn = document.getElementById('lobbySpikes');
   const unlockedChars = unlockedSkins.filter(k => CHAR_KEYS.includes(k)).length;
   const hasSpikes = unlockedSkins.includes('spikes');
-  const SPIKES_PRICE = 1000;
 
   spikesBtn.style.display = 'flex';
 
@@ -645,7 +645,7 @@ function updateLobbyUI() {
     spikesBtn.style.color       = '#0f1432';
     spikesBtn.style.borderColor = '#cca100';
     spikesBtn.style.boxShadow   = 'none';
-    spikesBtn.textContent       = `🔓 KUP TRYB KOLCÓW (\uD83C\uDFB5 ${SPIKES_PRICE})`;
+    spikesBtn.textContent       = `🔓 KUP TRYB KOLCÓW (\uD83C\uDFB5 ${SPIKES_MODE_PRICE})`;
     spikesBtn.disabled          = false;
   } else {
     spikesBtn.style.background  = '#1e1e4a';
@@ -734,17 +734,16 @@ async function onLobbySpikes() {
   if (lobbyPlayGuard) return;
   const hasSpikes = unlockedSkins.includes('spikes');
   const unlockedChars = unlockedSkins.filter(k => CHAR_KEYS.includes(k)).length;
-  const SPIKES_PRICE = 1000;
 
   if (!hasSpikes) {
     if (unlockedChars < 5) return;
-    if (playerCoins < SPIKES_PRICE) {
+    if (playerCoins < SPIKES_MODE_PRICE) {
       const btn = document.getElementById('lobbySpikes');
       btn.style.background = '#dc3232';
       setTimeout(() => updateLobbyUI(), 300);
       return;
     }
-    playerCoins -= SPIKES_PRICE;
+    playerCoins -= SPIKES_MODE_PRICE;
     unlockedSkins.push('spikes');
     await saveProgress();
     updateLobbyUI();
@@ -1376,10 +1375,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (audioCtx.state === 'running') audioCtx.suspend();
     stopMusic();
+    stopSpikesAudio();
   } else {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     if (SceneManager.activeScene && SceneManager.activeScene.state === 'playing') {
-      startMusic();
+      if (SceneManager.activeScene === FlappyMode) startMusic();
+      else if (SceneManager.activeScene === SpikesMode) startSpikesAudio();
     }
   }
 });
