@@ -172,6 +172,7 @@
 
     <button id="lobbyPlay" class="btn btn-yellow">▶ GRAJ</button>
     <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
+    <button id="lobbySpikes" class="btn" style="display:none; background:#dc3232; color:#fff; margin-top:10px; border:2px solid #ff5555; box-shadow: 0 0 15px #dc323288;">🔥 TRYB KOLCÓW (HARDCORE)</button>
   </div>
 </div>
 
@@ -353,6 +354,27 @@ const bgMusic = new Audio('assets/sounds/music.mp3');
 bgMusic.loop = true; bgMusic.volume = 0.3;
 function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(e => console.warn('music blocked:', e)); }
 function stopMusic()  { bgMusic.pause(); }
+
+// ── Strumienie Audio dla trybu Spikes ─────────────────────────────────────────
+const spikesMusic = new Audio('assets/sounds/jeopardy.mp3');
+spikesMusic.loop = true;
+spikesMusic.volume = 0.25;
+
+const spikesVoice = new Audio('assets/sounds/voice.mp3');
+spikesVoice.loop = true;
+spikesVoice.volume = 1.0;
+
+function startSpikesAudio() {
+  spikesMusic.currentTime = 0;
+  spikesMusic.play().catch(e => console.warn('spikes music blocked:', e));
+  spikesVoice.currentTime = 0;
+  spikesVoice.play().catch(e => console.warn('spikes voice blocked:', e));
+}
+
+function stopSpikesAudio() {
+  spikesMusic.pause();
+  spikesVoice.pause();
+}
 
 // Sound effects — Web Audio API (low-latency, no pool needed)
 const _AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -578,6 +600,12 @@ function updateLobbyUI() {
   document.getElementById('charPreviewBonus').textContent = CHARACTERS[activeSkin].desc;
   document.getElementById('charPreviewImg').src           = `assets/characters/${CHARACTERS[activeSkin].img}`;
   renderCharPicker();
+  const spikesBtn = document.getElementById('lobbySpikes');
+  if (unlockedSkins.length >= CHAR_KEYS.length) {
+    spikesBtn.style.display = 'flex';
+  } else {
+    spikesBtn.style.display = 'none';
+  }
 }
 
 function renderCharPicker() {
@@ -652,6 +680,19 @@ lobbyPlay.addEventListener('touchend', e => { e.preventDefault(); onLobbyPlay();
 lobbyShop.addEventListener('click',    () => showShop());
 lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); });
 
+const lobbySpikes = document.getElementById('lobbySpikes');
+async function onLobbySpikes() {
+  if (lobbyPlayGuard) return;
+  lobbyPlayGuard = true;
+  computeSessionParams();
+  await applyActiveSkin(activeSkin);
+  SceneManager.changeScene(SpikesMode);
+  showGame();
+  setTimeout(() => { lobbyPlayGuard = false; }, 500);
+}
+lobbySpikes.addEventListener('click', onLobbySpikes);
+lobbySpikes.addEventListener('touchend', e => { e.preventDefault(); onLobbySpikes(); });
+
 // ── Shop ──────────────────────────────────────────────────────────────────────
 function onShopBack() {
   if (shopFromWaiting) {
@@ -666,66 +707,76 @@ function onShopBack() {
 document.getElementById('shopBack').addEventListener('click',    () => onShopBack());
 document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); onShopBack(); });
 
+// ── Ostateczna Architektura Sklepu (DOM Hydration & Optimistic UI) ────────────
+let shopInitialized = false;
+const shopUI = {};
+let shopActionGuard = false;
+
 function renderShop() {
   document.getElementById('shopCoins').textContent = '🎵 ' + playerCoins;
   const grid = document.getElementById('shopGrid');
-  if (!grid) { console.error('[Shop] shopGrid element not found!'); return; }
-  grid.innerHTML = '';
+  if (!grid) return;
+
+  if (!shopInitialized) {
+    grid.innerHTML = '';
+    CHAR_KEYS.forEach(key => {
+      const ch = CHARACTERS[key];
+      const card = document.createElement('div');
+      const img = document.createElement('img');
+      img.src = `assets/characters/${ch.img}`;
+      img.alt = ch.name;
+      img.onerror = () => { img.style.opacity = '.3'; };
+      const name = document.createElement('div');
+      name.className = 'cc-name'; name.textContent = ch.name;
+      const bonuses = document.createElement('div');
+      bonuses.className = 'cc-bonuses'; bonuses.textContent = ch.desc;
+      const btn = document.createElement('button');
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        e.preventDefault();
+        handleShopAction(key);
+      });
+      card.append(img, name, bonuses, btn);
+      grid.appendChild(card);
+      shopUI[key] = { card, btn };
+    });
+    shopInitialized = true;
+  }
 
   CHAR_KEYS.forEach(key => {
     const ch       = CHARACTERS[key];
     const owned    = unlockedSkins.includes(key);
     const isActive = activeSkin === key;
     const canBuy   = !owned && playerCoins >= ch.price;
-    const card = document.createElement('div');
-    card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
+    const ui       = shopUI[key];
+    ui.card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
+    ui.btn.className  = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
+    ui.btn.textContent = isActive ? '✓ AKTYWNA'
+                       : owned    ? 'WYBIERZ'
+                       : canBuy   ? `KUP \uD83C\uDFB5${ch.price}`
+                       :            `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
+    ui.btn.disabled = isActive || (!owned && !canBuy);
+  });
+}
 
-    const img = document.createElement('img');
-    img.src = `assets/characters/${ch.img}`;
-    img.alt = ch.name;
-    img.onerror = () => { img.style.opacity = '.3'; };
-
-    const name = document.createElement('div');
-    name.className = 'cc-name'; name.textContent = ch.name;
-
-    const bonuses = document.createElement('div');
-    bonuses.className = 'cc-bonuses'; bonuses.textContent = ch.desc;
-
-    const btn = document.createElement('button');
-    btn.className = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
-    btn.textContent = isActive ? '✓ AKTYWNA'
-                    : owned    ? 'WYBIERZ'
-                    : canBuy   ? `KUP \uD83C\uDFB5${ch.price}`
-                    :            `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
-    if (isActive || (!owned && !canBuy)) btn.disabled = true;
-
-    let guard = false;
-    async function doAction(e) {
-      if (e) e.preventDefault();
-      if (guard) return;
-      guard = true;
-      if (owned) {
-        activeSkin = key;
-        await applyActiveSkin(key);
-        await saveProgress();
-        renderShop();
-        updateLobbyUI();
-      } else {
-        if (playerCoins < ch.price) { console.warn('[Shop] not enough coins'); guard = false; return; }
-        playerCoins   -= ch.price;
-        unlockedSkins.push(key);
-        activeSkin     = key;
-        await applyActiveSkin(key);
-        await saveProgress();
-        renderShop();
-        updateLobbyUI();
-      }
-    }
-    btn.addEventListener('click',    doAction);
-    btn.addEventListener('touchend', doAction);
-
-    card.append(img, name, bonuses, btn);
-    grid.appendChild(card);
+function handleShopAction(key) {
+  if (shopActionGuard) return;
+  const ch = CHARACTERS[key];
+  const owned = unlockedSkins.includes(key);
+  if (owned) {
+    if (activeSkin === key) return;
+    activeSkin = key;
+  } else {
+    if (playerCoins < ch.price) return;
+    playerCoins -= ch.price;
+    unlockedSkins.push(key);
+    activeSkin = key;
+  }
+  shopActionGuard = true;
+  applyActiveSkin(key).then(() => {
+    renderShop();
+    updateLobbyUI();
+    saveProgress().finally(() => { shopActionGuard = false; });
   });
 }
 
@@ -979,6 +1030,198 @@ const FlappyMode = {
   onAction(px, py) {
     if (this.state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
       showShopFromWaiting(); return;
+    }
+    if (this.state === 'waiting')  { this.startGame(); return; }
+    if (this.state === 'playing')  { this.bird.jump(); return; }
+    if (this.state === 'gameover') {
+      if (performance.now() - this.gameOverAt > 1000) this.resetState();
+      return;
+    }
+  }
+};
+
+// ── Kartridż 2: Spikes Mode (End-Game) ────────────────────────────────────────
+const SpikesMode = {
+  state: 'waiting',
+  score: 0,
+  gameOverAt: 0,
+  spikesLeft: [],
+  spikesRight: [],
+  maxSpikes: 3,
+
+  bird: {
+    x: GW/2 - BIRD_SIZE/2, y: GH/2,
+    vx: 4.5, vy: 0,
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 4, h: BIRD_SIZE - 4 },
+    jump() { this.vy = JUMP_FORCE; },
+    update(dt) {
+      const f = dt / 16.667;
+      const deltaY = this.vy * f + 0.5 * GRAVITY * f * f;
+      this.vy += GRAVITY * f;
+      this.y  += deltaY;
+      this.x  += this.vx * f;
+    },
+    rect() { this._r.x = this.x + 2; this._r.y = this.y + 2; return this._r; }
+  },
+
+  init() {
+    this.resetState();
+    stopMusic();
+    updateHUD(this.score);
+  },
+
+  resetState() {
+    this.bird.x = GW/2 - BIRD_SIZE/2; this.bird.y = GH/2;
+    this.bird.vx = Math.random() > 0.5 ? 4.5 : -4.5;
+    this.bird.vy = 0;
+    this.score = 0;
+    this.maxSpikes = 3;
+    this.spikesLeft = [];
+    this.spikesRight = [];
+    leaderboard = []; leaderboardLoading = false; lbCacheReady = false;
+    extraLifeAvail = S_EXTRA; flashUntil = 0;
+    this.state = 'waiting';
+  },
+
+  startGame() {
+    this.state = 'playing';
+    this.bird.jump();
+    startSpikesAudio();
+  },
+
+  async die() {
+    if (extraLifeAvail) {
+      extraLifeAvail = false;
+      flashUntil = performance.now() + 1500;
+      this.bird.vy = JUMP_FORCE;
+      return;
+    }
+    stopSpikesAudio();
+    this.gameOverAt = performance.now();
+    this.state = 'gameover';
+    saveProgress(this.score);
+    if (this.score > playerBestScore) playerBestScore = this.score;
+  },
+
+  generateSpikes(side) {
+    const arr = side === 'left' ? this.spikesLeft : this.spikesRight;
+    arr.length = 0;
+    const padding = 100;
+    const usableHeight = GH - (padding * 2);
+    const sections = 12;
+    const sectionHeight = usableHeight / sections;
+    let availableSections = Array.from({length: sections}, (_, i) => i);
+    availableSections.sort(() => Math.random() - 0.5);
+    for (let i = 0; i < this.maxSpikes; i++) {
+      const sec = availableSections[i];
+      const spikeY = padding + (sec * sectionHeight) + (sectionHeight/2);
+      arr.push({ y: spikeY, active: true });
+    }
+  },
+
+  update(dt) {
+    if (this.state === 'gameover' || this.state !== 'playing') return;
+    this.bird.update(dt);
+    const br = this.bird.rect();
+    const isInvincible = performance.now() < flashUntil;
+
+    if (this.bird.x <= 0) {
+      this.bird.x = 0;
+      this.bird.vx *= -1;
+      this.onWallHit('right');
+    } else if (this.bird.x + BIRD_SIZE >= GW) {
+      this.bird.x = GW - BIRD_SIZE;
+      this.bird.vx *= -1;
+      this.onWallHit('left');
+    }
+
+    if (!isInvincible) {
+      if (this.bird.x < 30) {
+        for (const sp of this.spikesLeft) {
+          _cr.x = 0; _cr.y = sp.y - 16; _cr.w = 24; _cr.h = 32;
+          if (overlaps(br, _cr)) { this.die(); return; }
+        }
+      } else if (this.bird.x > GW - BIRD_SIZE - 30) {
+        for (const sp of this.spikesRight) {
+          _cr.x = GW - 24; _cr.y = sp.y - 16; _cr.w = 24; _cr.h = 32;
+          if (overlaps(br, _cr)) { this.die(); return; }
+        }
+      }
+    }
+
+    if (this.bird.y > GH || this.bird.y < -BIRD_SIZE) { this.die(); return; }
+  },
+
+  onWallHit(nextWall) {
+    const pts = S_DOUBLE ? 2 : 1;
+    this.score += pts;
+    playerCoins += pts;
+    if (this.score % 5 === 0 && this.maxSpikes < 10) this.maxSpikes++;
+    if (this.score % 10 === 0) this.bird.vx += (this.bird.vx > 0 ? 0.2 : -0.2);
+    this.generateSpikes(nextWall);
+    if (nextWall === 'right') this.spikesLeft.length = 0;
+    else this.spikesRight.length = 0;
+  },
+
+  draw() {
+    if (this.state === 'waiting') {
+      ctx.globalAlpha = 0.65; ctx.drawImage(bgCacheCanvas, 0, 0); ctx.globalAlpha = 1.0;
+    } else { ctx.drawImage(bgCacheCanvas, 0, 0); }
+
+    ctx.fillStyle = '#888';
+    this.spikesLeft.forEach(sp => {
+      ctx.beginPath();
+      ctx.moveTo(0, sp.y - 16); ctx.lineTo(24, sp.y); ctx.lineTo(0, sp.y + 16);
+      ctx.fill();
+    });
+    this.spikesRight.forEach(sp => {
+      ctx.beginPath();
+      ctx.moveTo(GW, sp.y - 16); ctx.lineTo(GW - 24, sp.y); ctx.lineTo(GW, sp.y + 16);
+      ctx.fill();
+    });
+
+    if (this.state !== 'waiting') {
+      const isInvincible = performance.now() < flashUntil;
+      if (!isInvincible || ((performance.now() / 150) | 0) % 2 === 0) {
+        ctx.save();
+        ctx.translate(this.bird.x + BIRD_SIZE/2, this.bird.y + BIRD_SIZE/2);
+        if (this.bird.vx < 0) ctx.scale(-1, 1);
+        ctx.rotate(Math.max(-20, Math.min(20, this.bird.vy * 2)) * Math.PI / 180);
+        ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE);
+        ctx.restore();
+      }
+    }
+
+    updateHUD(this.score);
+    if (this.state === 'waiting') this.drawWaiting();
+    else if (this.state === 'gameover') this.drawGameOver();
+  },
+
+  drawWaiting() {
+    txt(ctx, 'SPIKES MODE', GW/2, GH/4+10, 'bold 48px Arial', '#dc3232');
+    const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
+    drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
+    if (((performance.now() / 600) | 0) % 2 === 0)
+      txt(ctx, 'Tapnij aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
+    const b = SHOP_BTN;
+    ctx.fillStyle = '#1a6aff'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    txt(ctx, '← WRÓĆ', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
+  },
+
+  drawGameOver() {
+    overlay(0.7);
+    txt(ctx, 'ZGINĄŁEŚ', GW/2, GH/3, 'bold 44px Arial', '#dc3232');
+    txt(ctx, 'Wynik: '+this.score, GW/2, GH/2, 'bold 30px Arial', '#ffd700');
+    const canRestart = (performance.now() - this.gameOverAt) > 1000;
+    txt(ctx, canRestart ? 'Tapnij, aby zagrać ponownie' : 'Czekaj...', GW/2, GH*2/3, '15px Arial', canRestart ? '#fff' : '#555');
+  },
+
+  onAction(px, py) {
+    if (this.state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
+      stopSpikesAudio();
+      SceneManager.changeScene(FlappyMode);
+      showLobby();
+      return;
     }
     if (this.state === 'waiting')  { this.startGame(); return; }
     if (this.state === 'playing')  { this.bird.jump(); return; }
