@@ -271,15 +271,33 @@ async function loadPlayerData(nick, pin) {
   return { coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', score: 0 };
 }
 
-async function saveProgress(roundScore = playerBestScore) {
-  try {
-    if (roundScore > playerBestScore) playerBestScore = roundScore;
-    const ref = doc(db, 'leaderboard', playerNick);
-    await setDoc(ref, {
-      nick: playerNick, score: playerBestScore, date: new Date(),
-      coins: playerCoins, unlockedSkins, activeSkin, pin: playerPin
-    }, { merge: true });
-  } catch(e) { console.warn('saveProgress:', e); }
+// ── Ochrona limitów Firebase (Debouncing) ─────────────────────────────────────
+let saveTimeout = null;
+
+async function saveProgress(roundScore = playerBestScore, immediate = false) {
+  if (roundScore > playerBestScore) playerBestScore = roundScore;
+
+  const executeSave = async () => {
+    try {
+      const ref = doc(db, 'leaderboard', playerNick);
+      await setDoc(ref, {
+        nick: playerNick, score: playerBestScore, date: new Date(),
+        coins: playerCoins, unlockedSkins, activeSkin, pin: playerPin
+      }, { merge: true });
+    } catch(e) { console.warn('saveProgress:', e); }
+  };
+
+  if (immediate) {
+    if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+    await executeSave();
+  } else {
+    if (!saveTimeout) {
+      saveTimeout = setTimeout(() => {
+        executeSave();
+        saveTimeout = null;
+      }, 5000);
+    }
+  }
 }
 
 async function getTopScores() {
@@ -708,7 +726,7 @@ function renderCharPicker() {
         activeSkin = key;
         await applyActiveSkin(key);
         updateLobbyUI();
-        saveProgress().finally(() => { pGuard = false; });
+        saveProgress(playerBestScore, true).finally(() => { pGuard = false; });
       }
       wrap.addEventListener('pointerdown', e => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -766,7 +784,7 @@ async function onLobbySpikes() {
     }
     playerCoins -= SPIKES_MODE_PRICE;
     unlockedSkins.push('spikes');
-    await saveProgress();
+    await saveProgress(playerBestScore, true);
     updateLobbyUI();
     return;
   }
@@ -864,7 +882,7 @@ function handleShopAction(key) {
   applyActiveSkin(key).then(() => {
     renderShop();
     updateLobbyUI();
-    saveProgress().finally(() => { shopActionGuard = false; });
+    saveProgress(playerBestScore, true).finally(() => { shopActionGuard = false; });
   });
 }
 
