@@ -398,6 +398,15 @@ function stopSpikesAudio() {
   spikesVoice.pause();
 }
 
+function resumeMusic() {
+  bgTracks[currentTrack].play().catch(e => console.warn('music resume blocked:', e));
+}
+
+function resumeSpikesAudio() {
+  spikesMusic.play().catch(e => console.warn('spikes music resume blocked:', e));
+  spikesVoice.play().catch(e => console.warn('spikes voice resume blocked:', e));
+}
+
 // Sound effects — Web Audio API (low-latency, no pool needed)
 const _AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioCtx = new _AudioContext();
@@ -1442,8 +1451,8 @@ document.addEventListener('visibilitychange', () => {
   } else {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     if (SceneManager.activeScene && SceneManager.activeScene.state === 'playing') {
-      if (SceneManager.activeScene === FlappyMode) startMusic();
-      else if (SceneManager.activeScene === SpikesMode) startSpikesAudio();
+      if (SceneManager.activeScene === FlappyMode) resumeMusic();
+      else if (SceneManager.activeScene === SpikesMode) resumeSpikesAudio();
     }
   }
 });
