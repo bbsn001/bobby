@@ -228,19 +228,19 @@ const CHARACTERS = {
   deadman:  { name:'Deadman',   img:'deadman.png',  price:100,  col:'grammy.png',
               bonuses:['speed-5'],                    desc:'rury −5%' },
   krystian: { name:'Krystian',  img:'krystian.png', price:200,  col:'diormind.png',
-              bonuses:['double'],                     desc:'×2 punkty' },
+              bonuses:['extralife'],                  desc:'+1 życie' },
   johnny:   { name:'Johnny',    img:'johnny.png',   price:350,  col:'joint.png',
               bonuses:['gap+10','speed-5'],           desc:'przelot +10px, rury −5%' },
   kolin:    { name:'Kolin',     img:'kolin.png',    price:500,  col:'strzykawka.png',
-              bonuses:['extralife'],                  desc:'+1 życie' },
+              bonuses:['gap+20'],                     desc:'przelot +20px' },
   kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:750,  col:'dziecko.png',
-              bonuses:['speed-10','double'],          desc:'rury −10%, ×2 pkt' },
+              bonuses:['speed-10','extralife'],       desc:'rury −10%, +1 życie' },
   reczu:    { name:'Reczu',     img:'reczu.png',    price:1000, col:'kutas.png',
-              bonuses:['gap+20','extralife'],         desc:'przelot +20px, +1 życie' },
+              bonuses:['gap+20','speed-10'],          desc:'przelot +20px, rury −10%' },
   szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:1500, col:'scat.png',
-              bonuses:['speed-10','gap+20','double'], desc:'rury −10%, przelot +20px, ×2' },
+              bonuses:['double'],                     desc:'×2 punkty i monety' },
   tom:      { name:'Tom',       img:'tom.png',      price:2000, col:'wozek.png',
-              bonuses:['extralife','double','speed-10'], desc:'+życie, ×2 pkt, rury −10%' },
+              bonuses:['extralife','double','speed-5'], desc:'+życie, ×2 pkt, rury −5%' },
   majka:    { name:'Majka 👑',  img:'majka.png',    price:3500, col:'onlyfans.png',
               bonuses:['gap+30','speed-15','double','extralife'],
               desc:'WSZYSTKO: −15%, +30px, ×2, +życie', special:true },
@@ -324,6 +324,20 @@ const STARS = Array.from({ length: 25 }, () => ({
 }));
 const bgCacheCanvas = document.createElement('canvas');
 const bgCtx = bgCacheCanvas.getContext('2d');
+const uiCacheCanvas = document.createElement('canvas');
+let uiCacheReady = false;
+
+function buildUICache() {
+  uiCacheCanvas.width = GW; uiCacheCanvas.height = GH;
+  const uctx = uiCacheCanvas.getContext('2d');
+  uctx.font = 'bold 52px Arial'; uctx.fillStyle = '#ffd700'; uctx.textAlign = 'center';
+  uctx.fillText('Bobby Bird', GW/2, GH/4+10);
+  const b = SHOP_BTN;
+  uctx.fillStyle = '#1a6aff'; uctx.beginPath(); uctx.roundRect(b.x, b.y, b.w, b.h, 12); uctx.fill();
+  uctx.font = 'bold 18px Arial'; uctx.fillStyle = '#fff';
+  uctx.fillText('\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7);
+  uiCacheReady = true;
+}
 function renderBackgroundToCache() {
   bgCacheCanvas.width = GW; bgCacheCanvas.height = GH;
   bgCtx.fillStyle = '#0f1432';
@@ -751,7 +765,7 @@ const FlappyMode = {
   // Hermetyzacja ptaka tylko dla tego trybu
   bird: {
     x: 80, y: 300, vy: 0,
-    _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 4, h: BIRD_SIZE - 4 },
     jump()     { this.vy = JUMP_FORCE; },
     update(dt) {
       const f = dt / 16.667;
@@ -759,7 +773,7 @@ const FlappyMode = {
       this.vy += GRAVITY * f;
       this.y  += deltaY;
     },
-    rect() { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
+    rect() { this._r.x = this.x + 2; this._r.y = this.y + 2; return this._r; }
   },
 
   // Inicjalizacja sesji (Zastępuje initNewSession i resetGame)
@@ -791,7 +805,8 @@ const FlappyMode = {
   async die() {
     if (extraLifeAvail) {
       extraLifeAvail = false;
-      flashUntil = performance.now() + 1200;
+      flashUntil = performance.now() + 1500;
+      this.bird.vy = JUMP_FORCE;
       return;
     }
     stopMusic();
@@ -857,6 +872,8 @@ const FlappyMode = {
     const f = dt / 16.667;
     const br = this.bird.rect();
 
+    const isInvincible = performance.now() < flashUntil;
+
     for (let i = 0; i < this.pipePool.length; i++) {
       const p = this.pipePool[i];
       if (!p.active) continue;
@@ -877,10 +894,12 @@ const FlappyMode = {
         }
       }
 
-      _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
-      if (overlaps(br, _pr)) { this.die(); return; }
-      _pr.y = p.botY; _pr.h = GH - p.botY;
-      if (overlaps(br, _pr)) { this.die(); return; }
+      if (!isInvincible) {
+        _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
+        if (overlaps(br, _pr)) { this.die(); return; }
+        _pr.y = p.botY; _pr.h = GH - p.botY;
+        if (overlaps(br, _pr)) { this.die(); return; }
+      }
     }
 
     if (this.bird.y > GH || this.bird.y < -BIRD_SIZE) { this.die(); return; }
@@ -918,7 +937,12 @@ const FlappyMode = {
       }
     }
 
-    if (this.state !== 'waiting') drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
+    if (this.state !== 'waiting') {
+      const isInvincible = performance.now() < flashUntil;
+      if (!isInvincible || ((performance.now() / 150) | 0) % 2 === 0) {
+        drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
+      }
+    }
 
     updateHUD(this.score);
 
@@ -927,15 +951,13 @@ const FlappyMode = {
   },
 
   drawWaiting() {
-    txt(ctx, 'Bobby Bird', GW/2, GH/4+10, 'bold 52px Arial', '#ffd700');
+    if (!uiCacheReady) buildUICache();
+    ctx.drawImage(uiCacheCanvas, 0, 0);
     const hy = GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12;
     drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
-    if (Math.floor(performance.now()/600) % 2 === 0)
+    if (((performance.now() / 600) | 0) % 2 === 0) {
       txt(ctx, 'Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
-
-    const b = SHOP_BTN;
-    ctx.fillStyle = '#1a6aff'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
-    txt(ctx, '\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
+    }
   },
 
   drawGameOver() {
@@ -1039,6 +1061,15 @@ function startGameLoop() {
 
 document.addEventListener('visibilitychange', () => {
   lastTime = performance.now();
+  if (document.hidden) {
+    if (audioCtx.state === 'running') audioCtx.suspend();
+    bgMusic.pause();
+  } else {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (SceneManager.activeScene && SceneManager.activeScene.state === 'playing') {
+      bgMusic.play().catch(() => {});
+    }
+  }
 });
 
 // ── Audio prewarm — unlock AudioContext on first user gesture ─────────────────
