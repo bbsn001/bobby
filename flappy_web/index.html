@@ -360,13 +360,14 @@ const bgTracks = [
   new Audio('assets/sounds/music2.mp3')
 ];
 bgTracks.forEach(t => { t.volume = 0.3; });
-let currentTrack = 0;
+let currentTrack = -1;
 
 // Ustawiamy onended raz, nie przy każdym starcie
 bgTracks[0].onended = () => { currentTrack = 1; bgTracks[1].currentTime = 0; bgTracks[1].play().catch(() => {}); };
 bgTracks[1].onended = () => { currentTrack = 0; bgTracks[0].currentTime = 0; bgTracks[0].play().catch(() => {}); };
 
 function startMusic() {
+  bgTracks[currentTrack === -1 ? 0 : currentTrack].pause();
   currentTrack = (currentTrack + 1) % bgTracks.length;
   const track = bgTracks[currentTrack];
   track.currentTime = 0;
@@ -549,8 +550,8 @@ function updateHUD(currentScore) {
   if (_hud_score !== currentScore) {
     _hud_score = currentScore;
     hudScoreEl.textContent = currentScore;
-    hudScoreEl.style.transform = 'scale(1.2)';
-    setTimeout(() => { hudScoreEl.style.transform = 'scale(1)'; }, 100);
+    hudScoreEl.style.transform = 'scale(1.3)';
+    requestAnimationFrame(() => { hudScoreEl.style.transform = 'scale(1)'; });
   }
   const heartState = S_EXTRA ? (extraLifeAvail ? '\u2665' : '\u2661') : '';
   if (_hud_extra !== heartState) {
@@ -905,7 +906,6 @@ const FlappyMode = {
   // Inicjalizacja sesji (Zastępuje initNewSession i resetGame)
   init() {
     this.resetState();
-    stopMusic();
     updateHUD(this.score); // Inicjalizacja HUD
   },
 
@@ -1011,6 +1011,7 @@ const FlappyMode = {
       if (!p.collected) {
         _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2;
         _cr.y = (p.topH + p.botY)/2 - collectH/2;
+        _cr.w = COL_W;
         _cr.h = collectH;
         if (overlaps(br, _cr)) {
           p.collected = true;
@@ -1021,7 +1022,7 @@ const FlappyMode = {
       }
 
       if (!isInvincible) {
-        _pr.x = p.x; _pr.y = 0; _pr.h = p.topH;
+        _pr.x = p.x; _pr.w = PIPE_WIDTH; _pr.y = 0; _pr.h = p.topH;
         if (overlaps(br, _pr)) { this.die(); return; }
         _pr.y = p.botY; _pr.h = GH - p.botY;
         if (overlaps(br, _pr)) { this.die(); return; }
@@ -1168,7 +1169,6 @@ const SpikesMode = {
 
   init() {
     this.resetState();
-    stopMusic();
     updateHUD(this.score);
   },
 
