@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v3';
+const CACHE_NAME = 'bobby-bird-v4';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -27,6 +27,7 @@ const ASSETS_TO_CACHE = [
   './assets/collectibles/scat.png',
   './assets/collectibles/wozek.png',
   './assets/sounds/music.mp3',
+  './assets/sounds/music2.mp3',
   './assets/sounds/kaching.wav',
   './assets/sounds/mumia.mp3',
   './assets/sounds/7.mp3',

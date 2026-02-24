@@ -350,10 +350,28 @@ renderBackgroundToCache();
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
 // Background music — HTMLAudioElement (streaming)
-const bgMusic = new Audio('assets/sounds/music.mp3');
-bgMusic.loop = true; bgMusic.volume = 0.3;
-function startMusic() { bgMusic.currentTime = 0; bgMusic.play().catch(e => console.warn('music blocked:', e)); }
-function stopMusic()  { bgMusic.pause(); }
+const bgTracks = [
+  new Audio('assets/sounds/music.mp3'),
+  new Audio('assets/sounds/music2.mp3')
+];
+bgTracks.forEach(t => { t.volume = 0.3; });
+let currentTrack = 0;
+
+function startMusic() {
+  const track = bgTracks[currentTrack];
+  track.currentTime = 0;
+  track.play().catch(e => console.warn('music blocked:', e));
+
+  // Po zakończeniu przełącz na kolejny utwór
+  track.onended = () => {
+    currentTrack = (currentTrack + 1) % bgTracks.length;
+    startMusic();
+  };
+}
+
+function stopMusic() {
+  bgTracks.forEach(t => { t.pause(); t.onended = null; });
+}
 
 // ── Strumienie Audio dla trybu Spikes ─────────────────────────────────────────
 const spikesMusic = new Audio('assets/sounds/jeopardy.mp3');
@@ -1357,11 +1375,11 @@ document.addEventListener('visibilitychange', () => {
   lastTime = performance.now();
   if (document.hidden) {
     if (audioCtx.state === 'running') audioCtx.suspend();
-    bgMusic.pause();
+    stopMusic();
   } else {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     if (SceneManager.activeScene && SceneManager.activeScene.state === 'playing') {
-      bgMusic.play().catch(() => {});
+      startMusic();
     }
   }
 });
