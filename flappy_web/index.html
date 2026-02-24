@@ -449,6 +449,14 @@ function computeSessionParams() {
 let extraLifeAvail = false;
 let flashUntil     = 0;
 
+// ── Globalne zmienne stanu (Brakujące deklaracje) ─────────────────────────────
+let leaderboard          = [];
+let leaderboardLoading   = false;
+let cachedLeaderboard    = [];
+let lastLeaderboardFetch = 0;
+const _cr = { x: 0, y: 0, w: 0, h: 0 };
+const _pr = { x: 0, y: 0, w: 0, h: 0 };
+
 // ── Screen management ─────────────────────────────────────────────────────────
 const nickScreen  = document.getElementById('nickScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
