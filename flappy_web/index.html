@@ -571,9 +571,7 @@ function updateHUD(currentScore) {
     _hud_score = currentScore;
     hudScoreEl.textContent = currentScore;
     hudScoreEl.style.transform = 'scale(1.3)';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => { hudScoreEl.style.transform = 'scale(1)'; });
-    });
+    setTimeout(() => { hudScoreEl.style.transform = 'scale(1)'; }, 100);
   }
   const heartState = S_EXTRA ? (extraLifeAvail ? '\u2665' : '\u2661') : '';
   if (_hud_extra !== heartState) {
@@ -1396,8 +1394,13 @@ function overlapsSpike(br, spY, side) {
     return (br.y <= spY + allowedY && br.y + br.h >= spY - allowedY);
   }
 }
+// ── Optymalizacja Sterownika Graficznego (State Caching) ──────────────────────
+let _ctxFont = '', _ctxFill = '', _ctxAlign = '';
+
 function txt(context, str, x, y, font, color, align = 'center') {
-  context.font = font; context.fillStyle = color; context.textAlign = align;
+  if (_ctxFont !== font)   { context.font = font;        _ctxFont = font;   }
+  if (_ctxFill !== color)  { context.fillStyle = color;  _ctxFill = color;  }
+  if (_ctxAlign !== align) { context.textAlign = align;  _ctxAlign = align; }
   context.fillText(str, x, y);
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
