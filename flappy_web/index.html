@@ -338,6 +338,10 @@ function buildUICache() {
   uctx.fillStyle = '#1a6aff'; uctx.beginPath(); uctx.roundRect(b.x, b.y, b.w, b.h, 12); uctx.fill();
   uctx.font = 'bold 18px Arial'; uctx.fillStyle = '#fff';
   uctx.fillText('\uD83D\uDED2 SKLEP', b.x + b.w/2, b.y + b.h/2 + 7);
+  const lb = LOBBY_BTN;
+  uctx.fillStyle = '#dc3232'; uctx.beginPath(); uctx.roundRect(lb.x, lb.y, lb.w, lb.h, 12); uctx.fill();
+  uctx.font = 'bold 16px Arial'; uctx.fillStyle = '#fff';
+  uctx.fillText('🏠 LOBBY', lb.x + lb.w/2, lb.y + lb.h/2 + 7);
   uiCacheReady = true;
 }
 function renderBackgroundToCache() {
@@ -363,6 +367,7 @@ bgTracks[0].onended = () => { currentTrack = 1; bgTracks[1].currentTime = 0; bgT
 bgTracks[1].onended = () => { currentTrack = 0; bgTracks[0].currentTime = 0; bgTracks[0].play().catch(() => {}); };
 
 function startMusic() {
+  currentTrack = (currentTrack + 1) % bgTracks.length;
   const track = bgTracks[currentTrack];
   track.currentTime = 0;
   track.play().catch(e => console.warn('music blocked:', e));
@@ -655,57 +660,59 @@ function updateLobbyUI() {
   }
 }
 
+// ── Zoptymalizowany Char Picker (DOM Hydration) ───────────────────────────────
+let charPickerInitialized = false;
+const charPickerUI = {};
+
 function renderCharPicker() {
   const bar = document.getElementById('charPicker');
   if (!bar) return;
-  bar.innerHTML = '';
-  CHAR_KEYS.forEach(key => {
-    const ch     = CHARACTERS[key];
-    const owned  = unlockedSkins.includes(key);
-    const active = activeSkin === key;
 
-    const wrap = document.createElement('div');
-    wrap.style.cssText =
-      `flex-shrink:0;position:relative;border-radius:8px;
-       border:2px solid ${active ? '#ffd700' : 'transparent'};
-       opacity:${owned ? 1 : 0.4};
-       cursor:${owned ? 'pointer' : 'default'};
-       touch-action:manipulation;`;
+  if (!charPickerInitialized) {
+    bar.innerHTML = '';
+    CHAR_KEYS.forEach(key => {
+      const ch = CHARACTERS[key];
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'flex-shrink:0;position:relative;border-radius:8px;touch-action:manipulation;';
 
-    const img = document.createElement('img');
-    img.src = `assets/characters/${ch.img}`;
-    img.alt = ch.name;
-    img.title = ch.name;
-    img.style.cssText = 'width:50px;height:50px;object-fit:cover;border-radius:6px;display:block;background:#0f1432';
+      const img = document.createElement('img');
+      img.src = `assets/characters/${ch.img || key + '.png'}`;
+      img.alt = ch.name;
+      img.style.cssText = 'width:50px;height:50px;object-fit:cover;border-radius:6px;display:block;background:#0f1432';
 
-    wrap.appendChild(img);
-
-    if (!owned) {
       const lock = document.createElement('div');
-      lock.style.cssText =
-        'position:absolute;inset:0;display:flex;align-items:center;' +
-        'justify-content:center;font-size:16px;pointer-events:none;border-radius:6px;' +
-        'background:rgba(0,0,0,.35)';
+      lock.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;pointer-events:none;border-radius:6px;background:rgba(0,0,0,.35)';
       lock.textContent = '\uD83D\uDD12';
-      wrap.appendChild(lock);
-    }
 
-    if (owned) {
+      wrap.append(img, lock);
+
       let pGuard = false;
       async function pickChar(e) {
         if (e) e.preventDefault();
-        if (pGuard || activeSkin === key) return;
+        if (pGuard || activeSkin === key || !unlockedSkins.includes(key)) return;
         pGuard = true;
         activeSkin = key;
         await applyActiveSkin(key);
-        await saveProgress();
         updateLobbyUI();
+        saveProgress().finally(() => { pGuard = false; });
       }
-      wrap.addEventListener('click',    pickChar);
-      wrap.addEventListener('touchend', pickChar);
-    }
+      wrap.addEventListener('click', pickChar);
+      wrap.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') pickChar(e); });
 
-    bar.appendChild(wrap);
+      bar.appendChild(wrap);
+      charPickerUI[key] = { wrap, lock };
+    });
+    charPickerInitialized = true;
+  }
+
+  CHAR_KEYS.forEach(key => {
+    const owned  = unlockedSkins.includes(key);
+    const active = activeSkin === key;
+    const ui = charPickerUI[key];
+    ui.wrap.style.border  = `2px solid ${active ? '#ffd700' : 'transparent'}`;
+    ui.wrap.style.opacity = owned ? '1' : '0.4';
+    ui.wrap.style.cursor  = owned ? 'pointer' : 'default';
+    ui.lock.style.display = owned ? 'none' : 'flex';
   });
 }
 
@@ -1082,13 +1089,24 @@ const FlappyMode = {
     else if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, 138);
 
     ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
+    const lb = LOBBY_BTN;
+    ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(lb.x, lb.y, lb.w, lb.h, 12); ctx.fill();
+    txt(ctx, '🏠 LOBBY', lb.x + lb.w/2, lb.y + lb.h/2 + 7, 'bold 16px Arial', '#fff');
+
     const canRestart = (performance.now() - this.gameOverAt) > 1000;
     txt(ctx, canRestart ? 'Tapnij, aby zagrać ponownie' : 'Czekaj...', GW/2, 402, '15px Arial', canRestart ? '#fff' : '#555');
   },
 
   onAction(px, py) {
-    if (this.state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
-      showShopFromWaiting(); return;
+    if (px !== undefined && py !== undefined) {
+      if (this.state === 'waiting' && hitShopBtn(px, py)) {
+        showShopFromWaiting(); return;
+      }
+      if ((this.state === 'waiting' || this.state === 'gameover') && hitLobbyBtn(px, py)) {
+        stopMusic();
+        showLobby();
+        return;
+      }
     }
     if (this.state === 'waiting')  { this.startGame(); return; }
     if (this.state === 'playing')  { this.bird.jump(); return; }
@@ -1099,6 +1117,19 @@ const FlappyMode = {
   }
 };
 
+// ── Offscreen Canvas dla Kolców (Optymalizacja GPU) ───────────────────────────
+const spikeLeftCanvas = document.createElement('canvas');
+spikeLeftCanvas.width = 24; spikeLeftCanvas.height = 32;
+const slCtx = spikeLeftCanvas.getContext('2d');
+slCtx.fillStyle = '#888'; slCtx.beginPath();
+slCtx.moveTo(0, 0); slCtx.lineTo(24, 16); slCtx.lineTo(0, 32); slCtx.fill();
+
+const spikeRightCanvas = document.createElement('canvas');
+spikeRightCanvas.width = 24; spikeRightCanvas.height = 32;
+const srCtx = spikeRightCanvas.getContext('2d');
+srCtx.fillStyle = '#888'; srCtx.beginPath();
+srCtx.moveTo(24, 0); srCtx.lineTo(0, 16); srCtx.lineTo(24, 32); srCtx.fill();
+
 // ── Kartridż 2: Spikes Mode (End-Game) ────────────────────────────────────────
 const SpikesMode = {
   state: 'waiting',
@@ -1107,6 +1138,7 @@ const SpikesMode = {
   spikesLeft: [],
   spikesRight: [],
   maxSpikes: 3,
+  _secArray: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
 
   bird: {
     x: GW/2 - BIRD_SIZE/2, y: GH/2,
@@ -1166,18 +1198,29 @@ const SpikesMode = {
 
   generateSpikes(side) {
     const arr = side === 'left' ? this.spikesLeft : this.spikesRight;
-    arr.length = 0;
+
     const padding = 100;
     const usableHeight = GH - (padding * 2);
     const sections = 12;
     const sectionHeight = usableHeight / sections;
-    let availableSections = Array.from({length: sections}, (_, i) => i);
-    availableSections.sort(() => Math.random() - 0.5);
-    for (let i = 0; i < this.maxSpikes; i++) {
-      const sec = availableSections[i];
-      const spikeY = padding + (sec * sectionHeight) + (sectionHeight/2);
-      arr.push({ y: spikeY, active: true });
+
+    // In-place Fisher-Yates Shuffle (zero alokacji pamięci)
+    for (let i = sections - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this._secArray[i], this._secArray[j]] = [this._secArray[j], this._secArray[i]];
     }
+
+    for (let i = 0; i < this.maxSpikes; i++) {
+      const sec = this._secArray[i];
+      const spikeY = padding + (sec * sectionHeight) + (sectionHeight/2);
+      if (!arr[i]) {
+        arr[i] = { y: spikeY, active: true };
+      } else {
+        arr[i].y = spikeY;
+        arr[i].active = true;
+      }
+    }
+    arr.length = this.maxSpikes;
   },
 
   update(dt) {
@@ -1234,16 +1277,12 @@ const SpikesMode = {
       ctx.globalAlpha = 0.65; ctx.drawImage(bgCacheCanvas, 0, 0); ctx.globalAlpha = 1.0;
     } else { ctx.drawImage(bgCacheCanvas, 0, 0); }
 
-    ctx.fillStyle = '#888';
     this.spikesLeft.forEach(sp => {
-      ctx.beginPath();
-      ctx.moveTo(0, sp.y - 16); ctx.lineTo(24, sp.y); ctx.lineTo(0, sp.y + 16);
-      ctx.fill();
+      ctx.drawImage(spikeLeftCanvas, 0, sp.y - 16);
     });
+
     this.spikesRight.forEach(sp => {
-      ctx.beginPath();
-      ctx.moveTo(GW, sp.y - 16); ctx.lineTo(GW - 24, sp.y); ctx.lineTo(GW, sp.y + 16);
-      ctx.fill();
+      ctx.drawImage(spikeRightCanvas, GW - 24, sp.y - 16);
     });
 
     if (this.state !== 'waiting') {
@@ -1269,25 +1308,29 @@ const SpikesMode = {
     drawBirdAt(GW/2 - BIRD_SIZE/2, hy, 0);
     if (((performance.now() / 600) | 0) % 2 === 0)
       txt(ctx, 'Tapnij aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
-    const b = SHOP_BTN;
-    ctx.fillStyle = '#1a6aff'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
-    txt(ctx, '← WRÓĆ', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 18px Arial', '#fff');
+    const b = LOBBY_BTN;
+    ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    txt(ctx, '🏠 LOBBY', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 16px Arial', '#fff');
   },
 
   drawGameOver() {
     overlay(0.7);
     txt(ctx, 'ZGINĄŁEŚ', GW/2, GH/3, 'bold 44px Arial', '#dc3232');
     txt(ctx, 'Wynik: '+this.score, GW/2, GH/2, 'bold 30px Arial', '#ffd700');
+    const b = LOBBY_BTN;
+    ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    txt(ctx, '🏠 LOBBY', b.x + b.w/2, b.y + b.h/2 + 7, 'bold 16px Arial', '#fff');
     const canRestart = (performance.now() - this.gameOverAt) > 1000;
     txt(ctx, canRestart ? 'Tapnij, aby zagrać ponownie' : 'Czekaj...', GW/2, GH*2/3, '15px Arial', canRestart ? '#fff' : '#555');
   },
 
   onAction(px, py) {
-    if (this.state === 'waiting' && px !== undefined && hitShopBtn(px, py)) {
-      stopSpikesAudio();
-      SceneManager.changeScene(FlappyMode);
-      showLobby();
-      return;
+    if (px !== undefined && py !== undefined) {
+      if ((this.state === 'waiting' || this.state === 'gameover') && hitLobbyBtn(px, py)) {
+        stopSpikesAudio();
+        showLobby();
+        return;
+      }
     }
     if (this.state === 'waiting')  { this.startGame(); return; }
     if (this.state === 'playing')  { this.bird.jump(); return; }
@@ -1323,10 +1366,16 @@ function txt(context, str, x, y, font, color, align = 'center') {
   context.fillText(str, x, y);
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
-const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
+const SHOP_BTN  = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
+const LOBBY_BTN = { x: 10,       y: GH - 80, w: 110, h: 64 };
 
 function hitShopBtn(px, py) {
   const b = SHOP_BTN;
+  return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+}
+
+function hitLobbyBtn(px, py) {
+  const b = LOBBY_BTN;
   return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
 }
 
