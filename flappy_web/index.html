@@ -220,29 +220,29 @@ const lbCacheCanvas = document.createElement('canvas');
 const lbCtx = lbCacheCanvas.getContext('2d');
 let lbCacheReady = false;
 
-// ── Character definitions ─────────────────────────────────────────────────────
+// ── Character definitions (ZBALANSOWANE CENY) ─────────────────────────────────
 const CHARACTERS = {
   bobby:    { name:'Bobby',     img:'bobby.png',    price:0,    col:'soundcloud.png',
               bonuses:[],                              desc:'brak bonusów' },
-  bialek:   { name:'Bialek',    img:'bialek.png',   price:50,   col:'nina.png',
+  bialek:   { name:'Bialek',    img:'bialek.png',   price:30,   col:'nina.png',
               bonuses:['gap+10'],                     desc:'przelot +10px' },
-  deadman:  { name:'Deadman',   img:'deadman.png',  price:100,  col:'grammy.png',
+  deadman:  { name:'Deadman',   img:'deadman.png',  price:75,   col:'grammy.png',
               bonuses:['speed-5'],                    desc:'rury −5%' },
-  krystian: { name:'Krystian',  img:'krystian.png', price:200,  col:'diormind.png',
+  krystian: { name:'Krystian',  img:'krystian.png', price:150,  col:'diormind.png',
               bonuses:['extralife'],                  desc:'+1 życie' },
-  johnny:   { name:'Johnny',    img:'johnny.png',   price:350,  col:'joint.png',
+  johnny:   { name:'Johnny',    img:'johnny.png',   price:250,  col:'joint.png',
               bonuses:['gap+10','speed-5'],           desc:'przelot +10px, rury −5%' },
-  kolin:    { name:'Kolin',     img:'kolin.png',    price:500,  col:'strzykawka.png',
+  kolin:    { name:'Kolin',     img:'kolin.png',    price:400,  col:'strzykawka.png',
               bonuses:['gap+20'],                     desc:'przelot +20px' },
-  kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:750,  col:'dziecko.png',
+  kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:600,  col:'dziecko.png',
               bonuses:['speed-10','extralife'],       desc:'rury −10%, +1 życie' },
-  reczu:    { name:'Reczu',     img:'reczu.png',    price:1000, col:'kutas.png',
+  reczu:    { name:'Reczu',     img:'reczu.png',    price:850,  col:'kutas.png',
               bonuses:['gap+20','speed-10'],          desc:'przelot +20px, rury −10%' },
-  szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:1500, col:'scat.png',
+  szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:1100, col:'scat.png',
               bonuses:['double'],                     desc:'×2 punkty i monety' },
-  tom:      { name:'Tom',       img:'tom.png',      price:2000, col:'wozek.png',
+  tom:      { name:'Tom',       img:'tom.png',      price:1500, col:'wozek.png',
               bonuses:['extralife','double','speed-5'], desc:'+życie, ×2 pkt, rury −5%' },
-  majka:    { name:'Majka 👑',  img:'majka.png',    price:3500, col:'onlyfans.png',
+  majka:    { name:'Majka 👑',  img:'majka.png',    price:2000, col:'onlyfans.png',
               bonuses:['gap+30','speed-15','double','extralife'],
               desc:'WSZYSTKO: −15%, +30px, ×2, +życie', special:true },
 };
