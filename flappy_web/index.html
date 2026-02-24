@@ -398,6 +398,7 @@ let activeSkin    = 'bobby';
 
 // ── Session params (computed from active skin) ────────────────────────────────
 let S_GAP = PIPE_GAP, S_SPEED = PIPE_SPEED, S_DOUBLE = false, S_EXTRA = false;
+let S_INTERVAL = PIPE_INTERVAL;
 
 function computeSessionParams() {
   const b = CHARACTERS[activeSkin].bonuses;
@@ -406,6 +407,7 @@ function computeSessionParams() {
                         : b.includes('speed-15')?.85 : b.includes('speed-10')?.90 : 1);
   S_DOUBLE = b.includes('double');
   S_EXTRA  = b.includes('extralife');
+  S_INTERVAL = PIPE_INTERVAL * (PIPE_SPEED / S_SPEED);
 }
 
 // ── Extra life ────────────────────────────────────────────────────────────────
@@ -555,11 +557,12 @@ lobbyShop.addEventListener('touchend', e => { e.preventDefault(); showShop(); })
 function onShopBack() {
   if (shopFromWaiting) {
     shopFromWaiting = false;
+    computeSessionParams();
+    initNewSession();
     hideAll();
     canvas.style.display = 'block';
     hudEl.style.display  = 'block';
     resize();
-    // stay in 'waiting' state — loop is already running
   } else {
     showLobby();
   }
@@ -755,7 +758,7 @@ function update(dt) {
   bird.update(dt);
 
   pipeTimer += dt;
-  if (pipeTimer >= PIPE_INTERVAL) { spawnPipe(); pipeTimer = 0; }
+  if (pipeTimer >= S_INTERVAL) { spawnPipe(); pipeTimer = 0; }
 
   const f = dt / 16.667;
   const br = bird.rect();
@@ -928,7 +931,7 @@ canvas.addEventListener('touchstart', e => { e.preventDefault(); const p = canva
 // ── Game loop (starts once, runs forever) ─────────────────────────────────────
 let lastTime = 0, loopRunning = false;
 function loop(now) {
-  const dt = lastTime ? Math.min(now - lastTime, 50) : 16.667;
+  const dt = 16.667;
   lastTime = now;
   if (canvas.style.display !== 'none') {
     update(dt);
@@ -945,6 +948,18 @@ function startGameLoop() {
 
 // ── Visibility change — reset delta time after tab switch ─────────────────────
 document.addEventListener('visibilitychange', () => { lastTime = 0; });
+
+// ── Audio prewarm — unlock AudioContext on first user gesture ─────────────────
+let audioUnlocked = false;
+function unlockAudioOnFirstTouch() {
+  if (audioUnlocked) return;
+  const silence = new Audio();
+  silence.src = 'data:audio/mp3;base64,//OExAAAAA...';
+  silence.play().catch(() => {});
+  audioUnlocked = true;
+}
+document.addEventListener('touchstart', unlockAudioOnFirstTouch, { once: true });
+document.addEventListener('mousedown',  unlockAudioOnFirstTouch, { once: true });
 </script>
 </body>
 </html>
