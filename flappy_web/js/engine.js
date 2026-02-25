@@ -336,26 +336,30 @@ export const SpikesMode = {
 // ── Tryb Igrzysk Zimowych (K-120) ─────────────────────────────────────────────
 function getHillY(x) {
   if (x < 0) return 100;
-  if (x < 250) return 100 + x * 1.2;               // Najazd (inrun)
-  if (x < 300) return 400 - (x - 250) * 0.1;       // Próg (lip) - lekkie wybicie w górę
-  if (x < 1500) return 450 + (x - 300) * 0.85;     // Zeskok (landing hill)
+  if (x < 250) return 100 + x * 1.2;               // Najazd (belka)
+  if (x < 300) return 400 - (x - 250) * 0.1;       // Próg (lekkie podbicie)
+  if (x < 1500) return 450 + (x - 300) * 0.85;     // Zeskok
   if (x < 2000) return 1470 + (x - 1500) * 0.2;    // Wypłaszczenie
-  return 1570;                                      // Płaski odjazd
+  return 1570;
 }
 
+// Generowanie otoczenia (uruchamiane raz dla optymalizacji)
+const skiTrees = Array.from({length: 45}, () => ({ x: Math.random() * 2200, s: 0.5 + Math.random() * 0.7 }));
+
 export const SkiJumpMode = {
-  state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 }, isPressing: false, hasCrashed: false,
+  state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
+  isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
 
   init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
-    this.bird.x = 0; this.bird.y = 80; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
-    this.distance = 0; this.hasCrashed = false; this.isPressing = false;
+    this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
+    this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.state = 'waiting';
   },
   startGame() {
     this.state = 'inrun';
-    this.bird.vx = 2; // Początkowe pchnięcie z belki
+    this.bird.vx = 1.5; // Odepchnięcie z belki
   },
 
   update(dt) {
@@ -363,38 +367,34 @@ export const SkiJumpMode = {
     const f = dt / 16.667;
 
     if (this.state === 'inrun') {
-      this.bird.vx += 0.12 * f; // Przyspieszenie grawitacyjne na rozbiegu
+      this.bird.vx += 0.15 * f; // Nabieranie prędkości
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
-      this.bird.angle = 50; // Kąt na najeździe
+      this.bird.angle = 50;
 
-      // Automatyczny spadek z progu, jeśli gracz zaspał z wybiciem
-      if (this.bird.x > 300) {
-        this.state = 'flight'; this.bird.vy = 2; // Lecimy jak kłoda
+      // Spadek, jeśli gracz zaspał z wybiciem na progu
+      if (this.bird.x > 305) {
+        this.state = 'flight'; this.bird.vy = 2;
         playSound('leci', 1.0);
       }
     }
     else if (this.state === 'flight') {
-      // Aerodynamika lotu (System 2)
-      this.bird.vx -= 0.005 * f; // Opór powietrza
+      this.bird.vx -= 0.003 * f; // Lekki opór powietrza
 
-      // Sterowanie kątem lotu - klucz do odległości
-      if (this.isPressing) this.bird.angle -= 2.5 * f; // Wychylenie do przodu
-      else this.bird.angle += 1.5 * f; // Grawitacja ciągnie narty w dół
+      if (this.isPressing) this.bird.angle -= 3.0 * f; // Wychylenie lotem
+      else this.bird.angle += 1.8 * f; // Grawitacja ciągnie narty
 
-      // Blokada nienaturalnych wygięć
       if (this.bird.angle < -20) this.bird.angle = -20;
       if (this.bird.angle > 80) this.bird.angle = 80;
 
-      // Fizyka nośności (Lift) - idealny kąt to około 0-10 stopni
+      // Fizyka nośności (Lift)
       let lift = 0;
-      if (this.bird.angle > -10 && this.bird.angle < 30) lift = 0.35;
+      if (this.bird.angle > -5 && this.bird.angle < 25) lift = 0.38;
 
       this.bird.vy += (GRAVITY - lift) * f;
       this.bird.x += this.bird.vx * f;
       this.bird.y += this.bird.vy * f;
 
-      // Kolizja z zeskokiem
       const terrainY = getHillY(this.bird.x);
       if (this.bird.y >= terrainY - 15) {
         this.bird.y = terrainY - 15;
@@ -402,7 +402,7 @@ export const SkiJumpMode = {
       }
     }
     else if (this.state === 'landed') {
-      this.bird.vx -= 0.1 * f; // Hamowanie na zeskoku
+      this.bird.vx -= 0.12 * f; // Hamowanie na zeskoku
       if (this.bird.vx < 0) this.bird.vx = 0;
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
@@ -413,8 +413,8 @@ export const SkiJumpMode = {
       }
     }
 
-    // Śledzenie wirtualnej kamery z wyprzedzeniem
-    this.camera.x = this.bird.x - GW * 0.3;
+    // Kamera śledzi postać (z marginesem)
+    this.camera.x = this.bird.x - GW * 0.35;
     this.camera.y = this.bird.y - GH * 0.5;
   },
 
@@ -424,10 +424,10 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
-    // Ocena lądowania (kąt postaci vs kąt stoku)
-    if (this.bird.angle < 10 || this.bird.angle > 70) {
+    // Bezlitosna ocena stylu
+    if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
       this.hasCrashed = true;
-      this.bird.angle = 90; // Leży twarzą w śniegu
+      this.bird.angle = 95; // Przewrotka
     } else {
       this.bird.angle = 40; // Telemark
     }
@@ -447,30 +447,47 @@ export const SkiJumpMode = {
   },
 
   draw() {
-    ctx.fillStyle = '#b4c8ff'; ctx.fillRect(0, 0, GW, GH);
+    // Gradient nieba
+    const grad = ctx.createLinearGradient(0, 0, 0, GH);
+    grad.addColorStop(0, '#1e3a8a'); grad.addColorStop(1, '#93c5fd');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, GW, GH);
 
     ctx.save();
     ctx.translate(-this.camera.x, -this.camera.y);
 
-    // Rysowanie stoku skoczni
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-100, 1000);
-    for (let x = -100; x < this.camera.x + GW + 200; x += 50) {
-      ctx.lineTo(x, getHillY(x));
+    // Drzewa w tle (Paralaksa)
+    skiTrees.forEach(t => {
+      const tx = t.x; const ty = getHillY(tx) - 15;
+      if (tx > this.camera.x - 100 && tx < this.camera.x + GW + 100) {
+        ctx.fillStyle = '#064e3b';
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 18*t.s, ty + 50*t.s); ctx.lineTo(tx + 18*t.s, ty + 50*t.s); ctx.fill();
+      }
+    });
+
+    // Drewniana konstrukcja rozbiegu
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 450); ctx.lineTo(-100, 150); ctx.fill();
+
+    // Stok i pokrywa śnieżna
+    ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(250, 400); ctx.lineTo(300, 395); // Próg
+    for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
+    ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(250, 2500); ctx.fill(); ctx.stroke();
+
+    // Znaczniki odległości na zeskoku (co 10 metrów)
+    ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
+    for (let d = 50; d <= 160; d += 10) {
+       const mx = 300 + (d * 10); const my = getHillY(mx);
+       if (mx > this.camera.x - 50 && mx < this.camera.x + GW + 50) {
+         ctx.strokeStyle = (d === 120) ? '#dc3232' : '#64748b'; // Punkt K na czerwono
+         ctx.lineWidth = (d === 120) ? 4 : 2;
+         ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx, my + 40); ctx.stroke();
+         ctx.fillStyle = (d === 120) ? '#dc3232' : '#0f172a';
+         ctx.fillText(d + 'm', mx - 6, my + 30);
+       }
     }
-    ctx.lineTo(this.camera.x + GW + 200, 2500);
-    ctx.lineTo(-100, 2500);
-    ctx.fill();
-    ctx.stroke();
 
-    // Punkt K (Czerwona Linia)
-    ctx.strokeStyle = '#dc3232'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(1300, getHillY(1300)); ctx.lineTo(1300, getHillY(1300)+50); ctx.stroke();
-
-    // Rysowanie Narciarza
+    // Rysowanie Narciarza (Twój Asset + Głowa)
     ctx.save();
     ctx.translate(this.bird.x, this.bird.y);
     ctx.rotate(this.bird.angle * Math.PI / 180);
@@ -481,28 +498,49 @@ export const SkiJumpMode = {
     if (playerImg) {
       ctx.drawImage(playerImg, -10, -35, 30, 30);
     }
+
+    // Krew przy upadku
+    if (this.hasCrashed) {
+      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
 
     ctx.restore(); // Koniec trybu kamery
 
+    // ── HUD i Interfejs ──
     updateHUD(this.state === 'waiting' ? 0 : this.distance);
+
+    // Wskaźnik timingu wybicia (Sygnalizacja)
+    if (this.state === 'inrun') {
+      const distToLip = 300 - this.bird.x;
+      let indColor = '#dc3232'; // Za wcześnie
+      if (distToLip < 60) indColor = '#eab308'; // Przygotuj się
+      if (distToLip < 20) indColor = '#22b422'; // IDEALNIE
+
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(GW - 80, 60, 60, 60, 10); ctx.fill();
+      ctx.fillStyle = indColor; ctx.beginPath(); ctx.arc(GW - 50, 90, 20, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    }
 
     if (this.state === 'waiting') {
       overlay(0.5);
-      txt(ctx, 'IGRZYSKA (K-120)', GW/2, GH/4, 'bold 40px Arial', '#1e3a8a');
-      txt(ctx, 'Tapnij aby ruszyć z belki.', GW/2, GH/2, '18px Arial', '#fff');
-      txt(ctx, 'W LOCIE: Przytrzymaj ekran aby wychylić', GW/2, GH/2 + 30, '14px Arial', '#ffd700');
-      txt(ctx, 'się do przodu. Szukaj nośności!', GW/2, GH/2 + 50, '14px Arial', '#ffd700');
+      txt(ctx, 'IGRZYSKA (K-120)', GW/2, GH/4, 'bold 36px Arial', '#e0f2fe');
+      txt(ctx, '1. Tapnij aby ruszyć z belki', GW/2, GH/2 - 20, '16px Arial', '#fff');
+      txt(ctx, '2. Tapnij na progu (zielone światło!)', GW/2, GH/2 + 10, '16px Arial', '#fff');
+      txt(ctx, '3. Trzymaj ekran by płasko lecieć', GW/2, GH/2 + 40, '16px Arial', '#fff');
+      txt(ctx, '4. Tapnij przed ziemią (TELEMARK)', GW/2, GH/2 + 70, 'bold 16px Arial', '#ffd700');
     }
     else if (this.state === 'gameover') {
       overlay(0.7);
-      txt(ctx, this.hasCrashed ? 'UPADEK!' : 'WYLĄDOWAŁ!', GW/2, GH/3, 'bold 44px Arial', this.hasCrashed ? '#dc3232' : '#22b422');
+      if (this.hasCrashed) txt(ctx, 'GLEBA!', GW/2, GH/3, 'bold 50px Arial', '#dc3232');
+      else txt(ctx, 'USTAŁ!', GW/2, GH/3, 'bold 50px Arial', '#22b422');
+
       txt(ctx, 'Dystans: ' + this.distance + ' m', GW/2, GH/2, 'bold 30px Arial', '#fff');
-      txt(ctx, 'Rekord życiowy: ' + PlayerState.skiBestScore + ' m', GW/2, GH/2 + 35, '16px Arial', '#ffd700');
+      txt(ctx, 'Rekord: ' + PlayerState.skiBestScore + ' m', GW/2, GH/2 + 35, '16px Arial', '#ffd700');
 
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(10, GH - 80, 110, 64, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', 10 + 55, GH - 80 + 39, 'bold 16px Arial', '#fff');
-      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby skoczyć ponownie', GW/2, GH*2/3 + 40, '15px Arial', '#fff');
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby skoczyć', GW/2, GH*2/3 + 40, '15px Arial', '#fff');
     }
   },
 
@@ -513,16 +551,32 @@ export const SkiJumpMode = {
       }
     }
 
-    if (this.state === 'waiting') this.startGame();
+    if (this.state === 'waiting') {
+      this.startGame();
+    }
     else if (this.state === 'inrun') {
-      if (this.bird.x > 220 && this.bird.x < 300) {
-        this.bird.vy = -4.5; // Potężne wybicie pionowe
+      // Mechanika IDEALNEGO WYBICIA
+      if (this.bird.x > 150 && this.bird.x < 305) {
+        const distToOptimal = Math.abs(this.bird.x - 295);
+        let power = 1.0 - (distToOptimal / 145); // Im bliżej 295, tym bliżej 1.0
+        if (power < 0.2) power = 0.2;
+
+        this.bird.vy = -2.5 - (power * 4.5); // Max potężne odbicie: -7.0
         this.state = 'flight';
-        playSound('leci', 1.0);
         PlayerState.stats.jumps++;
+        playSound('leci', 1.0);
       }
     }
-    else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
+    else if (this.state === 'flight') {
+      // System Telemarku (Zabezpieczenie przed upadkiem)
+      const terrainY = getHillY(this.bird.x);
+      if (terrainY - this.bird.y < 90) {
+        this.telemark = true;
+      }
+    }
+    else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) {
+      this.resetState();
+    }
   }
 };
 
