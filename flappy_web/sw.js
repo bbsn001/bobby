@@ -1,9 +1,20 @@
-const CACHE_NAME = 'bobby-bird-v4';
+const CACHE_NAME = 'bobby-bird-v5';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
+
+  // NOWE: Nasze moduły ES6!
+  './js/config.js',
+  './js/state.js',
+  './js/firebase.js',
+  './js/audio.js',
+  './js/ui.js',
+  './js/engine.js',
+  './js/bounties.js',
+
+  // Stare assety bez zmian...
   './assets/characters/bobby.png',
   './assets/characters/bialek.png',
   './assets/characters/deadman.png',
