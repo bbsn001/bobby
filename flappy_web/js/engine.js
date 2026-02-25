@@ -3,7 +3,7 @@ import { GAME_CONFIG, CHARACTERS } from './config.js';
 import { PlayerState, SessionState } from './state.js';
 import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playSound, playSpecialSound, audioCtx, startWind, updateWind, stopWind } from './audio.js';
 import { updateHUD, hideAll, showLobby, showShop, setShopFromWaiting } from './ui.js';
-import { saveProgress, getTopScores } from './firebase.js';
+import { saveProgress, getTopScores, getSpikesTopScores } from './firebase.js';
 
 const { GW, GH, GRAVITY, JUMP_FORCE, PIPE_SPEED, PIPE_WIDTH, BIRD_SIZE, COL_W } = GAME_CONFIG;
 
@@ -138,6 +138,10 @@ const _pr = { x: 0, y: 0, w: 0, h: 0 };
 let leaderboard = [], leaderboardLoading = false, lbCacheReady = false, cachedLeaderboard = [], lastLeaderboardFetch = 0;
 const lbCacheCanvas = document.createElement('canvas'); const lbCtx = lbCacheCanvas.getContext('2d');
 
+// --- NOWE ZMIENNE DLA KOLCÓW ---
+let spikesLeaderboard = [], spikesLbLoading = false, spikesLbReady = false, spikesCachedLb = [], lastSpikesLbFetch = 0;
+const spikesLbCacheCanvas = document.createElement('canvas'); const spikesLbCtx = spikesLbCacheCanvas.getContext('2d');
+
 // ── Tryb Flappy ───────────────────────────────────────────────────────────────
 export const FlappyMode = {
   state: 'waiting', score: 0, pipeTimer: 0, gameOverAt: 0,
@@ -265,13 +269,35 @@ export const SpikesMode = {
   resetState() {
     this.bird.x = GW/2 - BIRD_SIZE/2; this.bird.y = GH/2; this.bird.vx = Math.random() > 0.5 ? 4.5 : -4.5; this.bird.vy = 0;
     this.score = 0; this.maxSpikes = 3; this.spikesLeft = []; this.spikesRight = [];
+    spikesLeaderboard = []; spikesLbLoading = false; spikesLbReady = false; // Reset GUI
     SessionState.extraLifeAvail = SessionState.S_EXTRA; SessionState.flashUntil = 0; this.state = 'waiting';
   },
   startGame() { this.state = 'playing'; this.bird.jump(); startSpikesAudio(); },
   async die() {
     if (SessionState.extraLifeAvail) { SessionState.extraLifeAvail = false; SessionState.flashUntil = performance.now() + 1500; this.bird.vy = JUMP_FORCE; return; }
     PlayerState.stats.deaths++; stopSpikesAudio(); this.gameOverAt = performance.now(); this.state = 'gameover';
-    if (this.score > PlayerState.bestScore) PlayerState.bestScore = this.score; saveProgress();
+    spikesLbLoading = true; spikesLeaderboard = []; saveProgress();
+
+    if (this.score > PlayerState.spikesBestScore) {
+      PlayerState.spikesBestScore = this.score;
+      const me = spikesCachedLb.find(e => e.nick === PlayerState.nick);
+      if (me) me.spikesBestScore = this.score; else spikesCachedLb.push({ nick: PlayerState.nick, spikesBestScore: this.score });
+      spikesCachedLb.sort((a,b) => b.spikesBestScore - a.spikesBestScore); spikesCachedLb = spikesCachedLb.slice(0, 10);
+      saveProgress(true); // Ostre zapisanie przy pobiciu
+    }
+
+    if (performance.now() - lastSpikesLbFetch > 60000 || !spikesCachedLb.length) {
+      spikesCachedLb = await getSpikesTopScores();
+      lastSpikesLbFetch = performance.now();
+    }
+    spikesLeaderboard = spikesCachedLb; spikesLbLoading = false; this.renderLb();
+  },
+  renderLb() {
+    spikesLbCacheCanvas.width = GW; spikesLbCacheCanvas.height = 300; spikesLbCtx.clearRect(0, 0, GW, 300);
+    spikesLeaderboard.forEach((e, i) => {
+      const color = e.nick === PlayerState.nick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
+      txt(spikesLbCtx, `${i+1}. ${e.nick}`, 22, 20 + i*22, '13px Arial', color, 'left'); txt(spikesLbCtx, String(e.spikesBestScore || 0), GW-22, 20 + i*22, '13px Arial', color, 'right');
+    }); spikesLbReady = true;
   },
   generateSpikes(side) {
     const arr = side === 'left' ? this.spikesLeft : this.spikesRight;
@@ -321,10 +347,19 @@ export const SpikesMode = {
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
     } else if (this.state === 'gameover') {
-      overlay(0.7); txt(ctx, 'ZGINĄŁEŚ', GW/2, GH/3, 'bold 44px Arial', '#dc3232'); txt(ctx, 'Wynik: '+this.score, GW/2, GH/2, 'bold 30px Arial', '#ffd700');
+      overlay(0.75);
+      txt(ctx, 'ZGINĄŁEŚ', GW/2, 60, 'bold 44px Arial', '#dc3232');
+      txt(ctx, 'Wynik: '+this.score, GW/2, 95, 'bold 26px Arial', '#ffd700');
+      txt(ctx, 'Rekord: '+PlayerState.spikesBestScore, GW/2, 115, '14px Arial', '#aaa');
+
+      // Sekcja tablicy
+      ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(20,130); ctx.lineTo(GW-20,130); ctx.stroke();
+      txt(ctx, '🔥 TOP 10 KOLCÓW', GW/2, 150, 'bold 15px Arial', '#dc3232');
+      if (spikesLbLoading) txt(ctx, 'Ładowanie...', GW/2, 175, '13px Arial', '#888'); else if (spikesLbReady) ctx.drawImage(spikesLbCacheCanvas, 0, 150);
+
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
-      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, GH*2/3, '15px Arial', '#fff');
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, GH*2/3 + 60, '15px Arial', '#fff');
     }
   },
   onAction(px, py) {

@@ -1,6 +1,6 @@
 // js/bounties.js
 import { PlayerState } from './state.js';
-import { fetchActiveBounties, createBountyInDb, removeBountyFromDb, saveProgress } from './firebase.js';
+import { fetchActiveBounties, createBountyInDb, removeBountyFromDb, saveProgress, getAllPlayerNicks } from './firebase.js';
 import { showLobby, showBounties, updateHUD } from './ui.js';
 
 const bountiesList = document.getElementById('bountiesList');
@@ -137,7 +137,26 @@ document.getElementById('lobbyBounties').addEventListener('click', () => {
 });
 document.getElementById('bountiesBack').addEventListener('click', showLobby);
 
-btnShowBountyForm.addEventListener('click', () => {
+btnShowBountyForm.addEventListener('click', async () => {
+  btnShowBountyForm.disabled = true;
+  btnShowBountyForm.textContent = 'Szukanie ofiar w okolicy...';
+
+  const nicks = await getAllPlayerNicks();
+
+  // Budowanie opcji do selecta
+  vNick.innerHTML = '<option value="">Wybierz ofiarę z listy...</option>';
+  nicks.forEach(n => {
+    if (n.toLowerCase() !== PlayerState.nick.toLowerCase()) {
+      const opt = document.createElement('option');
+      opt.value = n;
+      opt.textContent = n;
+      vNick.appendChild(opt);
+    }
+  });
+
+  btnShowBountyForm.textContent = '➕ WYCEŃ CZYJĄŚ GŁOWĘ';
+  btnShowBountyForm.disabled = false;
+
   btnShowBountyForm.style.display = 'none';
   bountyForm.style.display = 'block';
 });

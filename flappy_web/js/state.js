@@ -5,6 +5,7 @@ export const PlayerState = {
   coins: 0,
   bestScore: 0,
   skiBestScore: 0,
+  spikesBestScore: 0,
   unlockedSkins: ['bobby'],
   activeSkin: 'bobby',
   stats: { jumps: 0, deaths: 0, spikesHits: 0 },
@@ -14,6 +15,7 @@ export const PlayerState = {
     this.coins = data.coins ?? 0;
     this.bestScore = data.score ?? 0;
     this.skiBestScore = data.skiBestScore ?? 0;
+    this.spikesBestScore = data.spikesBestScore ?? 0;
     this.unlockedSkins = data.unlockedSkins || ['bobby'];
     this.activeSkin = this.unlockedSkins.includes(data.activeSkin) ? data.activeSkin : 'bobby';
     this.stats = data.stats || { jumps: 0, deaths: 0, spikesHits: 0 };

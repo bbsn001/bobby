@@ -56,6 +56,7 @@ export async function saveProgress(immediate = false) {
         nick: PlayerState.nick,
         score: PlayerState.bestScore,
         skiBestScore: PlayerState.skiBestScore,
+        spikesBestScore: PlayerState.spikesBestScore,
         date: new Date(),
         coins: PlayerState.coins,
         unlockedSkins: PlayerState.unlockedSkins,
@@ -115,4 +116,19 @@ export async function getSkiTopScores() {
     const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('skiBestScore','desc'), limit(10)));
     return snap.docs.map(d => d.data()).filter(d => (d.skiBestScore || 0) > 0);
   } catch(e) { console.warn('Błąd getSkiTopScores:', e); return []; }
+}
+
+export async function getSpikesTopScores() {
+  try {
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('spikesBestScore','desc'), limit(10)));
+    return snap.docs.map(d => d.data()).filter(d => (d.spikesBestScore || 0) > 0);
+  } catch(e) { console.warn('Błąd getSpikesTopScores:', e); return []; }
+}
+
+export async function getAllPlayerNicks() {
+  try {
+    // Pobiera do 100 aktywnych graczy z bazy
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(100)));
+    return snap.docs.map(d => d.data().nick);
+  } catch(e) { console.warn('Błąd pobierania listy graczy:', e); return []; }
 }
