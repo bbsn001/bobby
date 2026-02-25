@@ -334,6 +334,10 @@ export const SpikesMode = {
 };
 
 // ── Tryb Igrzysk Zimowych (K-120) ─────────────────────────────────────────────
+// Generowanie otoczenia (uruchamiane raz dla optymalizacji)
+const skiTrees = Array.from({length: 60}, () => ({ x: Math.random() * 2200, s: 0.4 + Math.random() * 0.8 }));
+const snowflakes = Array.from({length: 100}, () => ({ x: Math.random() * GW, y: Math.random() * GH, s: Math.random() * 2 + 1, v: Math.random() * 3 + 2 }));
+
 function getHillY(x) {
   if (x < 0) return 100;
   if (x < 250) return 100 + x * 1.2;               // Najazd (belka)
@@ -343,53 +347,67 @@ function getHillY(x) {
   return 1570;
 }
 
-// Generowanie otoczenia (uruchamiane raz dla optymalizacji)
-const skiTrees = Array.from({length: 45}, () => ({ x: Math.random() * 2200, s: 0.5 + Math.random() * 0.7 }));
-
 export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
+  // Zmienne do wizualnego feedbacku (Game Feel)
+  feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
 
   init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
+    this.feedbackText = ''; this.feedbackTimer = 0;
     this.state = 'waiting';
   },
   startGame() {
     this.state = 'inrun';
-    this.bird.vx = 1.5; // Odepchnięcie z belki
+    this.bird.vx = 1.5;
+  },
+
+  showFeedback(text, color) {
+    this.feedbackText = text;
+    this.feedbackColor = color;
+    this.feedbackTimer = performance.now();
+    this.feedbackY = this.bird.y - 40;
   },
 
   update(dt) {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
 
+    // Aktualizacja śniegu (poczucie prędkości)
+    snowflakes.forEach(sn => {
+      sn.y += sn.v * f;
+      sn.x -= (this.bird.vx * 0.5) * f; // Śnieg leci w lewo, gdy my w prawo
+      if (sn.y > GH) { sn.y = -10; sn.x = Math.random() * GW; }
+      if (sn.x < 0) sn.x = GW + 10;
+    });
+
     if (this.state === 'inrun') {
-      this.bird.vx += 0.15 * f; // Nabieranie prędkości
+      this.bird.vx += 0.16 * f; // Szybszy najazd dla dynamiki
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
 
-      // Spadek, jeśli gracz zaspał z wybiciem na progu
       if (this.bird.x > 305) {
-        this.state = 'flight'; this.bird.vy = 2;
+        this.state = 'flight'; this.bird.vy = 2.5;
+        this.showFeedback('SPÓŹNIONY!', '#dc3232');
         playSound('leci', 1.0);
       }
     }
     else if (this.state === 'flight') {
-      this.bird.vx -= 0.003 * f; // Lekki opór powietrza
+      this.bird.vx -= 0.003 * f;
 
-      if (this.isPressing) this.bird.angle -= 3.0 * f; // Wychylenie lotem
-      else this.bird.angle += 1.8 * f; // Grawitacja ciągnie narty
+      if (this.isPressing) this.bird.angle -= 3.5 * f;
+      else this.bird.angle += 2.0 * f;
 
       if (this.bird.angle < -20) this.bird.angle = -20;
       if (this.bird.angle > 80) this.bird.angle = 80;
 
-      // Fizyka nośności (Lift)
       let lift = 0;
-      if (this.bird.angle > -5 && this.bird.angle < 25) lift = 0.38;
+      if (this.bird.angle > -5 && this.bird.angle < 25) lift = 0.40; // Mocniejsze noszenie
 
       this.bird.vy += (GRAVITY - lift) * f;
       this.bird.x += this.bird.vx * f;
@@ -402,7 +420,7 @@ export const SkiJumpMode = {
       }
     }
     else if (this.state === 'landed') {
-      this.bird.vx -= 0.12 * f; // Hamowanie na zeskoku
+      this.bird.vx -= 0.12 * f;
       if (this.bird.vx < 0) this.bird.vx = 0;
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
@@ -413,7 +431,6 @@ export const SkiJumpMode = {
       }
     }
 
-    // Kamera śledzi postać (z marginesem)
     this.camera.x = this.bird.x - GW * 0.35;
     this.camera.y = this.bird.y - GH * 0.5;
   },
@@ -424,12 +441,13 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
-    // Bezlitosna ocena stylu
     if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
       this.hasCrashed = true;
-      this.bird.angle = 95; // Przewrotka
+      this.bird.angle = 95;
+      this.showFeedback('GLEBA!', '#dc3232');
     } else {
-      this.bird.angle = 40; // Telemark
+      this.bird.angle = 40;
+      this.showFeedback('TELEMARK!', '#22b422');
     }
 
     playSound('wyladowal', 1.0);
@@ -447,47 +465,73 @@ export const SkiJumpMode = {
   },
 
   draw() {
-    // Gradient nieba
+    // Gradient nieba DSJ
     const grad = ctx.createLinearGradient(0, 0, 0, GH);
-    grad.addColorStop(0, '#1e3a8a'); grad.addColorStop(1, '#93c5fd');
+    grad.addColorStop(0, '#3b82f6'); grad.addColorStop(1, '#93c5fd');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, GW, GH);
 
     ctx.save();
     ctx.translate(-this.camera.x, -this.camera.y);
 
-    // Drzewa w tle (Paralaksa)
+    // Las
     skiTrees.forEach(t => {
       const tx = t.x; const ty = getHillY(tx) - 15;
       if (tx > this.camera.x - 100 && tx < this.camera.x + GW + 100) {
         ctx.fillStyle = '#064e3b';
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 18*t.s, ty + 50*t.s); ctx.lineTo(tx + 18*t.s, ty + 50*t.s); ctx.fill();
+        ctx.fillStyle = '#047857'; // Jaśniejsza warstwa gałęzi
+        ctx.beginPath(); ctx.moveTo(tx, ty - 10*t.s); ctx.lineTo(tx - 12*t.s, ty + 30*t.s); ctx.lineTo(tx + 12*t.s, ty + 30*t.s); ctx.fill();
       }
     });
 
-    // Drewniana konstrukcja rozbiegu
-    ctx.fillStyle = '#78350f';
-    ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 450); ctx.lineTo(-100, 150); ctx.fill();
+    // Wieża skoczni (Retro Brąz)
+    ctx.fillStyle = '#553c15';
+    ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 480); ctx.lineTo(150, 480); ctx.lineTo(-100, 200); ctx.fill();
+    ctx.fillStyle = '#3f2a0d'; // Cień wieży
+    ctx.beginPath(); ctx.moveTo(-100, 150); ctx.lineTo(250, 440); ctx.lineTo(250, 480); ctx.lineTo(-100, 200); ctx.fill();
 
-    // Stok i pokrywa śnieżna
+    // Tor najazdu (Tory lodowe)
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(-100, 95); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(-100, 105); ctx.fill();
+
+    // STREFA WYBICIA (Czerwony próg - Diegetic UI)
+    ctx.fillStyle = '#dc3232';
+    ctx.beginPath(); ctx.moveTo(270, 385); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(270, 395); ctx.fill();
+
+    // Śnieg na zeskoku
     ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(250, 400); ctx.lineTo(300, 395); // Próg
+    ctx.beginPath(); ctx.moveTo(300, 400);
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
-    ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(250, 2500); ctx.fill(); ctx.stroke();
+    ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(300, 2500); ctx.fill(); ctx.stroke();
 
-    // Znaczniki odległości na zeskoku (co 10 metrów)
+    // Znaczniki odległości
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
     for (let d = 50; d <= 160; d += 10) {
        const mx = 300 + (d * 10); const my = getHillY(mx);
        if (mx > this.camera.x - 50 && mx < this.camera.x + GW + 50) {
-         ctx.strokeStyle = (d === 120) ? '#dc3232' : '#64748b'; // Punkt K na czerwono
-         ctx.lineWidth = (d === 120) ? 4 : 2;
+         ctx.strokeStyle = (d === 120) ? '#dc3232' : (d === 100) ? '#1d4ed8' : '#64748b';
+         ctx.lineWidth = (d === 120 || d === 100) ? 4 : 2;
          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx, my + 40); ctx.stroke();
          ctx.fillStyle = (d === 120) ? '#dc3232' : '#0f172a';
          ctx.fillText(d + 'm', mx - 6, my + 30);
        }
     }
 
-    // Rysowanie Narciarza (Twój Asset + Głowa)
+    // Dynamiczny tekst w świecie gry (Floating Text)
+    if (this.state === 'inrun' && this.bird.x > 150 && this.bird.x < 270) {
+      txt(ctx, 'GOTÓW...', this.bird.x, this.bird.y - 40, 'bold 20px Arial', '#fff');
+    }
+    if (this.state === 'inrun' && this.bird.x >= 270 && this.bird.x < 305) {
+      txt(ctx, 'SKACZ!', this.bird.x, this.bird.y - 40, 'bold 24px Arial', '#ffd700');
+    }
+
+    // Feedback po akcji (wybicie / lądowanie)
+    if (this.feedbackTimer > 0 && performance.now() - this.feedbackTimer < 1500) {
+      this.feedbackY -= 0.5; // Tekst unosi się do góry
+      txt(ctx, this.feedbackText, this.bird.x, this.feedbackY, 'bold 22px Arial', this.feedbackColor);
+    }
+
+    // Narciarz
     ctx.save();
     ctx.translate(this.bird.x, this.bird.y);
     ctx.rotate(this.bird.angle * Math.PI / 180);
@@ -499,7 +543,6 @@ export const SkiJumpMode = {
       ctx.drawImage(playerImg, -10, -35, 30, 30);
     }
 
-    // Krew przy upadku
     if (this.hasCrashed) {
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
     }
@@ -507,26 +550,20 @@ export const SkiJumpMode = {
 
     ctx.restore(); // Koniec trybu kamery
 
-    // ── HUD i Interfejs ──
+    // Rysowanie płatków śniegu na ekranie (nakładka kamery)
+    ctx.fillStyle = '#ffffff';
+    snowflakes.forEach(sn => {
+      ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.s, 0, Math.PI*2); ctx.fill();
+    });
+
+    // ── HUD statyczny ──
     updateHUD(this.state === 'waiting' ? 0 : this.distance);
-
-    // Wskaźnik timingu wybicia (Sygnalizacja)
-    if (this.state === 'inrun') {
-      const distToLip = 300 - this.bird.x;
-      let indColor = '#dc3232'; // Za wcześnie
-      if (distToLip < 60) indColor = '#eab308'; // Przygotuj się
-      if (distToLip < 20) indColor = '#22b422'; // IDEALNIE
-
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(GW - 80, 60, 60, 60, 10); ctx.fill();
-      ctx.fillStyle = indColor; ctx.beginPath(); ctx.arc(GW - 50, 90, 20, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-    }
 
     if (this.state === 'waiting') {
       overlay(0.5);
       txt(ctx, 'IGRZYSKA (K-120)', GW/2, GH/4, 'bold 36px Arial', '#e0f2fe');
-      txt(ctx, '1. Tapnij aby ruszyć z belki', GW/2, GH/2 - 20, '16px Arial', '#fff');
-      txt(ctx, '2. Tapnij na progu (zielone światło!)', GW/2, GH/2 + 10, '16px Arial', '#fff');
+      txt(ctx, '1. Tapnij aby ruszyć', GW/2, GH/2 - 20, '16px Arial', '#fff');
+      txt(ctx, '2. Tapnij na CZERWONYM PROGU', GW/2, GH/2 + 10, 'bold 16px Arial', '#dc3232');
       txt(ctx, '3. Trzymaj ekran by płasko lecieć', GW/2, GH/2 + 40, '16px Arial', '#fff');
       txt(ctx, '4. Tapnij przed ziemią (TELEMARK)', GW/2, GH/2 + 70, 'bold 16px Arial', '#ffd700');
     }
@@ -555,23 +592,29 @@ export const SkiJumpMode = {
       this.startGame();
     }
     else if (this.state === 'inrun') {
-      // Mechanika IDEALNEGO WYBICIA
+      // Mechanika IDEALNEGO WYBICIA - Ulepszona
       if (this.bird.x > 150 && this.bird.x < 305) {
-        const distToOptimal = Math.abs(this.bird.x - 295);
-        let power = 1.0 - (distToOptimal / 145); // Im bliżej 295, tym bliżej 1.0
+        const distToOptimal = Math.abs(this.bird.x - 290);
+        let power = 1.0 - (distToOptimal / 140);
         if (power < 0.2) power = 0.2;
 
-        this.bird.vy = -2.5 - (power * 4.5); // Max potężne odbicie: -7.0
+        this.bird.vy = -2.5 - (power * 4.8);
         this.state = 'flight';
         PlayerState.stats.jumps++;
         playSound('leci', 1.0);
+
+        // Feedback wizualny skoku
+        if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
+        else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
+        else this.showFeedback('SŁABO', '#dc3232');
       }
     }
     else if (this.state === 'flight') {
-      // System Telemarku (Zabezpieczenie przed upadkiem)
       const terrainY = getHillY(this.bird.x);
-      if (terrainY - this.bird.y < 90) {
+      // Lądowanie na ułamek sekundy przed ziemią
+      if (terrainY - this.bird.y < 120) {
         this.telemark = true;
+        this.showFeedback('PRZYGOTOWANY', '#93c5fd');
       }
     }
     else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) {
