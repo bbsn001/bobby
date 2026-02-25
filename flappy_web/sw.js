@@ -1,11 +1,10 @@
-const CACHE_NAME = 'bobby-bird-v6';
+const CACHE_NAME = 'bobby-bird-v7';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
 
-  // NOWE: Nasze moduły ES6!
   './js/config.js',
   './js/state.js',
   './js/firebase.js',
@@ -14,11 +13,7 @@ const ASSETS_TO_CACHE = [
   './js/engine.js',
   './js/bounties.js',
 
-  // Dodajemy Cwela do wora:
-  './assets/characters/cwel.png',
-  './assets/collectibles/cwel_col.png',
-
-  // Stare assety bez zmian...
+  // Grafiki postaci
   './assets/characters/bobby.png',
   './assets/characters/bialek.png',
   './assets/characters/deadman.png',
@@ -30,6 +25,9 @@ const ASSETS_TO_CACHE = [
   './assets/characters/reczu.png',
   './assets/characters/szpachl.png',
   './assets/characters/tom.png',
+  './assets/characters/cwel.png',
+
+  // Grafiki znajdziek
   './assets/collectibles/soundcloud.png',
   './assets/collectibles/nina.png',
   './assets/collectibles/grammy.png',
@@ -41,14 +39,30 @@ const ASSETS_TO_CACHE = [
   './assets/collectibles/kutas.png',
   './assets/collectibles/scat.png',
   './assets/collectibles/wozek.png',
+  './assets/collectibles/cwel_col.png',
+
+  // Dźwięki Tła
   './assets/sounds/music.mp3',
   './assets/sounds/music2.mp3',
-  './assets/sounds/kaching.wav',
-  './assets/sounds/mumia.mp3',
-  './assets/sounds/7.mp3',
-  './assets/sounds/krystian.mp3',
   './assets/sounds/jeopardy.mp3',
   './assets/sounds/voice.mp3',
+  './assets/sounds/kaching.wav',
+  './assets/sounds/7.mp3',
+
+  // UNIKALNE DŹWIĘKI POSTACI (NOWE)
+  './assets/sounds/bobby.mp3',
+  './assets/sounds/bialek.mp3',
+  './assets/sounds/deadman.mp3',
+  './assets/sounds/johnny.mp3',
+  './assets/sounds/kutasa.mp3',
+  './assets/sounds/majka.mp3',
+  './assets/sounds/reczu.mp3',
+  './assets/sounds/szpachl.mp3',
+  './assets/sounds/tom.mp3',
+  './assets/sounds/krystian.mp3',
+  './assets/sounds/mumia.mp3',
+  './assets/sounds/cwel.mp3',
+
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];

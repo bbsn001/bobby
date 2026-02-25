@@ -71,10 +71,23 @@ export function playSpecialSound(sc) {
 // ── Inicjalizacja buforów pamięci RAM (SFX) ──────────────────────────────────
 (async function initAudioBuffers() {
   await Promise.all([
+    // Fallbacki i stare dźwięki (w razie czego)
     loadAudioBuffer('kaching',  'assets/sounds/kaching.wav'),
-    loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3'),
     loadAudioBuffer('dzwiek7',  'assets/sounds/7.mp3'),
-    loadAudioBuffer('krystian', 'assets/sounds/krystian.mp3')
+
+    // Nowy potężny arsenał dźwiękowy
+    loadAudioBuffer('bobby',    'assets/sounds/bobby.mp3'),
+    loadAudioBuffer('bialek',   'assets/sounds/bialek.mp3'),
+    loadAudioBuffer('deadman',  'assets/sounds/deadman.mp3'),
+    loadAudioBuffer('johnny',   'assets/sounds/johnny.mp3'),
+    loadAudioBuffer('kutasa',   'assets/sounds/kutasa.mp3'),
+    loadAudioBuffer('majka',    'assets/sounds/majka.mp3'),
+    loadAudioBuffer('reczu',    'assets/sounds/reczu.mp3'),
+    loadAudioBuffer('szpachl',  'assets/sounds/szpachl.mp3'),
+    loadAudioBuffer('tom',      'assets/sounds/tom.mp3'),
+    loadAudioBuffer('krystian', 'assets/sounds/krystian.mp3'),
+    loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3'),
+    loadAudioBuffer('cwel',     'assets/sounds/cwel.mp3')
   ]);
   console.log('Audio buffers loaded.');
 })();
