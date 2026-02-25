@@ -351,7 +351,8 @@ export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
-  // Zmienne do wizualnego feedbacku (Game Feel)
+  wind: 0, // Zmienna środowiskowa wiatru (-2.0 do +2.0)
+  speedKmh: 0, // Wirtualna prędkość
   feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
 
   init() { this.resetState(); updateHUD(this.distance); },
@@ -359,34 +360,40 @@ export const SkiJumpMode = {
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.feedbackText = ''; this.feedbackTimer = 0;
+    // Generowanie wiatru losowego: ujemny (w plecy), dodatni (pod narty)
+    this.wind = (Math.random() * 4) - 2.0;
     this.state = 'waiting';
   },
   startGame() {
     this.state = 'inrun';
-    this.bird.vx = 1.5;
+    this.bird.vx = 1.0;
   },
 
   showFeedback(text, color) {
     this.feedbackText = text;
     this.feedbackColor = color;
     this.feedbackTimer = performance.now();
-    this.feedbackY = this.bird.y - 70; // Wyżej, żeby nie zasłaniać twarzy
+    this.feedbackY = this.bird.y - 80;
   },
 
   update(dt) {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
 
-    // Aktualizacja śniegu (poczucie prędkości)
+    // Kalkulacja wirtualnej prędkości km/h
+    this.speedKmh = Math.abs(this.bird.vx * 15 + this.bird.vy * 5);
+
     snowflakes.forEach(sn => {
       sn.y += sn.v * f;
-      sn.x -= (this.bird.vx * 0.5) * f; // Śnieg leci w lewo, gdy my w prawo
+      // Wiatr wizualnie wpływa na kierunek śniegu
+      sn.x -= (this.bird.vx * 0.5 - this.wind * 1.5) * f;
       if (sn.y > GH) { sn.y = -10; sn.x = Math.random() * GW; }
       if (sn.x < 0) sn.x = GW + 10;
+      if (sn.x > GW) sn.x = -10;
     });
 
     if (this.state === 'inrun') {
-      this.bird.vx += 0.16 * f; // Szybszy najazd dla dynamiki
+      this.bird.vx += 0.14 * f; // Gładsze przyspieszenie
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
@@ -398,18 +405,34 @@ export const SkiJumpMode = {
       }
     }
     else if (this.state === 'flight') {
-      this.bird.vx -= 0.003 * f;
+      // 1. Obrót (Rotacja nart)
+      if (this.isPressing) this.bird.angle -= 4.0 * f; // Agresywniejsze pochylenie
+      else this.bird.angle += 2.5 * f; // Ciążenie nart
 
-      if (this.isPressing) this.bird.angle -= 3.5 * f;
-      else this.bird.angle += 2.0 * f;
+      if (this.bird.angle < -15) this.bird.angle = -15;
+      if (this.bird.angle > 85) this.bird.angle = 85;
 
-      if (this.bird.angle < -20) this.bird.angle = -20;
-      if (this.bird.angle > 80) this.bird.angle = 80;
+      // 2. Wpływ Wiatru (Fizyka otoczenia)
+      this.bird.vx += (this.wind * 0.003) * f;
+      let windLift = this.wind > 0 ? (this.wind * 0.02) : (this.wind * 0.01); // Wiatr pod narty unosi bardziej, niż w plecy dusi
 
+      // 3. Dynamiczna Nośność (Krzywa tolerancji - idealny kąt to 15 stopni)
+      const optimalAngle = 15;
+      const angleDiff = Math.abs(this.bird.angle - optimalAngle);
       let lift = 0;
-      if (this.bird.angle > -10 && this.bird.angle < 35) lift = 0.43;
+      let drag = 0.002; // Bazowy opór
 
-      this.bird.vy += (GRAVITY - lift) * f;
+      if (angleDiff < 40) {
+        // Płynna krzywa nośności: max 0.45, im dalej od 15 stopni, tym mniejsza
+        lift = 0.45 * (1 - (angleDiff / 40));
+      } else {
+        // Twarde hamowanie przy złym kącie (tzw. "złapanie gumy")
+        drag += (angleDiff / 100) * 0.03;
+      }
+
+      this.bird.vx -= drag * f;
+      this.bird.vy += (GRAVITY - lift - windLift) * f;
+
       this.bird.x += this.bird.vx * f;
       this.bird.y += this.bird.vy * f;
 
@@ -420,7 +443,7 @@ export const SkiJumpMode = {
       }
     }
     else if (this.state === 'landed') {
-      this.bird.vx -= 0.12 * f;
+      this.bird.vx -= 0.15 * f;
       if (this.bird.vx < 0) this.bird.vx = 0;
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
@@ -431,8 +454,9 @@ export const SkiJumpMode = {
       }
     }
 
+    // Kamera z lekkim "wyprzedzeniem" w dół (żeby widzieć zeskok)
     this.camera.x = this.bird.x - GW * 0.35;
-    this.camera.y = this.bird.y - GH * 0.5;
+    this.camera.y = this.bird.y - GH * 0.4;
   },
 
   land() {
@@ -441,6 +465,7 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
+    // Rygorystyczny Telemark
     if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
       this.hasCrashed = true;
       this.bird.angle = 95;
@@ -465,7 +490,6 @@ export const SkiJumpMode = {
   },
 
   draw() {
-    // Gradient nieba DSJ
     const grad = ctx.createLinearGradient(0, 0, 0, GH);
     grad.addColorStop(0, '#3b82f6'); grad.addColorStop(1, '#93c5fd');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, GW, GH);
@@ -473,38 +497,32 @@ export const SkiJumpMode = {
     ctx.save();
     ctx.translate(-this.camera.x, -this.camera.y);
 
-    // Las
     skiTrees.forEach(t => {
       const tx = t.x; const ty = getHillY(tx) - 15;
       if (tx > this.camera.x - 100 && tx < this.camera.x + GW + 100) {
         ctx.fillStyle = '#064e3b';
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 18*t.s, ty + 50*t.s); ctx.lineTo(tx + 18*t.s, ty + 50*t.s); ctx.fill();
-        ctx.fillStyle = '#047857'; // Jaśniejsza warstwa gałęzi
+        ctx.fillStyle = '#047857';
         ctx.beginPath(); ctx.moveTo(tx, ty - 10*t.s); ctx.lineTo(tx - 12*t.s, ty + 30*t.s); ctx.lineTo(tx + 12*t.s, ty + 30*t.s); ctx.fill();
       }
     });
 
-    // Wieża skoczni (Retro Brąz)
     ctx.fillStyle = '#553c15';
     ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 480); ctx.lineTo(150, 480); ctx.lineTo(-100, 200); ctx.fill();
-    ctx.fillStyle = '#3f2a0d'; // Cień wieży
+    ctx.fillStyle = '#3f2a0d';
     ctx.beginPath(); ctx.moveTo(-100, 150); ctx.lineTo(250, 440); ctx.lineTo(250, 480); ctx.lineTo(-100, 200); ctx.fill();
 
-    // Tor najazdu (Tory lodowe)
     ctx.fillStyle = '#e2e8f0';
     ctx.beginPath(); ctx.moveTo(-100, 95); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(-100, 105); ctx.fill();
 
-    // STREFA WYBICIA (Czerwony próg - Diegetic UI)
     ctx.fillStyle = '#dc3232';
     ctx.beginPath(); ctx.moveTo(270, 385); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(270, 395); ctx.fill();
 
-    // Śnieg na zeskoku
     ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(300, 400);
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
     ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(300, 2500); ctx.fill(); ctx.stroke();
 
-    // Znaczniki odległości
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
     for (let d = 50; d <= 160; d += 10) {
        const mx = 300 + (d * 10); const my = getHillY(mx);
@@ -517,7 +535,6 @@ export const SkiJumpMode = {
        }
     }
 
-    // Dynamiczny tekst w świecie gry (Floating Text)
     if (this.state === 'inrun' && this.bird.x > 150 && this.bird.x < 270) {
       txt(ctx, 'GOTÓW...', this.bird.x, this.bird.y - 40, 'bold 20px Arial', '#fff');
     }
@@ -525,13 +542,11 @@ export const SkiJumpMode = {
       txt(ctx, 'SKACZ!', this.bird.x, this.bird.y - 40, 'bold 24px Arial', '#ffd700');
     }
 
-    // Feedback po akcji (wybicie / lądowanie)
     if (this.feedbackTimer > 0 && performance.now() - this.feedbackTimer < 1500) {
-      this.feedbackY -= 0.5; // Tekst unosi się do góry
+      this.feedbackY -= 0.5;
       txt(ctx, this.feedbackText, this.bird.x, this.feedbackY, 'bold 22px Arial', this.feedbackColor);
     }
 
-    // Narciarz
     ctx.save();
     ctx.translate(this.bird.x, this.bird.y);
     ctx.rotate(this.bird.angle * Math.PI / 180);
@@ -550,13 +565,22 @@ export const SkiJumpMode = {
 
     ctx.restore(); // Koniec trybu kamery
 
-    // Rysowanie płatków śniegu na ekranie (nakładka kamery)
     ctx.fillStyle = '#ffffff';
     snowflakes.forEach(sn => {
       ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.s, 0, Math.PI*2); ctx.fill();
     });
 
-    // ── HUD statyczny ──
+    // ── HUD: Wiatr i Prędkość ──
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; ctx.beginPath(); ctx.roundRect(GW - 90, 80, 80, 40, 8); ctx.fill();
+    const windColor = this.wind > 0 ? '#22b422' : '#dc3232'; // Zielony = pod narty, Czerwony = w plecy
+    txt(ctx, Math.abs(this.wind).toFixed(1) + ' m/s', GW - 50, 100, 'bold 14px Arial', windColor);
+    ctx.save(); ctx.translate(GW - 50, 110);
+    if (this.wind < 0) { ctx.scale(-1, 1); }
+    ctx.fillStyle = windColor; ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(-15, -3); ctx.lineTo(-15, -7); ctx.lineTo(-25, 0); ctx.lineTo(-15, 7); ctx.lineTo(-15, 3); ctx.lineTo(0, 3); ctx.fill();
+    ctx.restore();
+
+    txt(ctx, this.speedKmh.toFixed(1) + ' km/h', 50, 90, 'bold 16px Arial', '#fff');
+
     updateHUD(this.state === 'waiting' ? 0 : this.distance);
 
     if (this.state === 'waiting') {
@@ -594,10 +618,10 @@ export const SkiJumpMode = {
     else if (this.state === 'inrun') {
       if (this.bird.x > 150 && this.bird.x < 305) {
         const distToOptimal = Math.abs(this.bird.x - 290);
-        let power = 1.0 - (distToOptimal / 120); // Zmniejszony dzielnik = łatwiej o dobre odbicie
+        let power = 1.0 - (distToOptimal / 120);
         if (power < 0.2) power = 0.2;
 
-        this.bird.vy = -2.5 - (power * 5.2); // Mocniejsze wybicie bazowe do góry
+        this.bird.vy = -2.5 - (power * 5.2);
         this.state = 'flight';
         PlayerState.stats.jumps++;
         playSound('leci', 1.0);
@@ -609,8 +633,8 @@ export const SkiJumpMode = {
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
-      // Gracz ma teraz aż 180 pikseli zapasu nad ziemią, żeby wcisnąć telemark (wcześniej 120)
-      if (terrainY - this.bird.y < 180) {
+      // HARDCORE TELEMARK: Ekstremalnie małe okno na wciśnięcie (60 pikseli od ziemi)
+      if (terrainY - this.bird.y < 60) {
         this.telemark = true;
         this.showFeedback('PRZYGOTOWANY', '#93c5fd');
       }
