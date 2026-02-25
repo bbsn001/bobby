@@ -355,7 +355,7 @@ export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
-  wind: 0, speedKmh: 0, tracks: [], judges: [], totalScore: 0,
+  baseWind: 0, wind: 0, speedKmh: 0, tracks: [], judges: [], totalScore: 0,
   feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
 
   init() { this.resetState(); updateHUD(this.distance); },
@@ -363,9 +363,11 @@ export const SkiJumpMode = {
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.feedbackText = ''; this.feedbackTimer = 0; this.tracks = [];
-    this.wind = (Math.random() * 4) - 2.0;
 
-    // Losowanie 5 sędziów z puli postaci
+    // Inicjalizacja bazowego wiatru dla sesji
+    this.baseWind = (Math.random() * 4) - 2.0;
+    this.wind = this.baseWind;
+
     const allKeys = Object.keys(CHARACTERS);
     const shuffled = [...allKeys].sort(() => 0.5 - Math.random());
     this.judges = shuffled.slice(0, 5).map(k => {
@@ -387,9 +389,13 @@ export const SkiJumpMode = {
     const f = dt / 16.667;
     this.speedKmh = Math.abs(this.bird.vx * 15 + this.bird.vy * 5);
 
-    // Zapis historii trasy (Ślady nart)
-    if ((this.state === 'inrun' || this.state === 'landed') && this.tracks.length < 1000) {
+    if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.tracks.length < 1000) {
       this.tracks.push({ x: this.bird.x, y: this.bird.y });
+    }
+
+    // Żywy wiatr (Dynamiczne turbulencje środowiskowe)
+    if (this.state === 'flight') {
+      this.wind = this.baseWind + Math.sin(performance.now() * 0.002) * 0.8;
     }
 
     snowflakes.forEach(sn => {
@@ -416,22 +422,45 @@ export const SkiJumpMode = {
       this.bird.vx += (this.wind * 0.003) * f;
       let windLift = this.wind > 0 ? (this.wind * 0.02) : (this.wind * 0.01);
 
-      // Płynna aerodynamika (Krzywa nośności)
-      const angleDiff = Math.abs(this.bird.angle - 15); // Ideał to 15 stopni
+      const angleDiff = Math.abs(this.bird.angle - 15);
       let lift = 0; let drag = 0.002;
       if (angleDiff < 40) lift = 0.45 * (1 - (angleDiff / 40));
       else drag += (angleDiff / 100) * 0.03;
 
+      const terrainY = getHillY(this.bird.x);
+
+      // Poduszka Powietrzna (Ground Effect)
+      if (terrainY - this.bird.y < 45 && angleDiff < 20) {
+        lift += 0.20;
+      }
+
       this.bird.vx -= drag * f; this.bird.vy += (GRAVITY - lift - windLift) * f;
       this.bird.x += this.bird.vx * f; this.bird.y += this.bird.vy * f;
 
-      const terrainY = getHillY(this.bird.x);
       if (this.bird.y >= terrainY - 15) { this.bird.y = terrainY - 15; this.land(); }
     }
     else if (this.state === 'landed') {
-      this.bird.vx -= 0.15 * f;
-      if (this.bird.vx < 0) this.bird.vx = 0;
-      this.bird.x += this.bird.vx * f; this.bird.y = getHillY(this.bird.x) - 15;
+      if (this.hasCrashed) {
+        // Fizyka Szmacianki (Ragdoll / Tumbling)
+        this.bird.angle += 18 * f;
+        this.bird.vy += GRAVITY * f;
+        this.bird.x += this.bird.vx * f;
+        this.bird.y += this.bird.vy * f;
+
+        const groundY = getHillY(this.bird.x) - 15;
+        if (this.bird.y >= groundY) {
+          this.bird.y = groundY;
+          this.bird.vy = -this.bird.vy * 0.45; // Wektor Odbicia
+          this.bird.vx -= 0.4 * f; // Tarcie fizyczne
+        }
+        if (this.bird.vx < 0) this.bird.vx = 0;
+      } else {
+        // Czysty odjazd z telemarkiem
+        this.bird.vx -= 0.15 * f;
+        if (this.bird.vx < 0) this.bird.vx = 0;
+        this.bird.x += this.bird.vx * f; this.bird.y = getHillY(this.bird.x) - 15;
+      }
+
       if (this.bird.vx <= 0 && performance.now() - this.gameOverAt > 1500) {
         this.state = 'gameover'; this.checkRecord();
       }
@@ -445,14 +474,16 @@ export const SkiJumpMode = {
     if (this.distance < 0) this.distance = 0;
 
     if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
-      this.hasCrashed = true; this.bird.angle = 95; this.showFeedback('GLEBA!', '#dc3232');
+      this.hasCrashed = true;
+      this.bird.vy = -4.5; // Zapłon systemu Ragdoll (Wybicie w górę)
+      this.bird.vx *= 0.8;
+      this.showFeedback('GLEBA!', '#dc3232');
     } else {
       this.bird.angle = 40; this.showFeedback('TELEMARK!', '#22b422');
     }
 
-    // --- SYSTEM NOT SĘDZIOWSKICH ---
     this.judges.forEach(j => {
-      let base;
+      let base = 18;
       if (this.hasCrashed) base = 7 + Math.random() * 4;
       else if (!this.telemark) base = 14 + Math.random() * 3.5;
       else base = 17.5 + Math.random() * 2.5;
@@ -466,7 +497,7 @@ export const SkiJumpMode = {
 
     const judgeTotal = rawScores[1].val + rawScores[2].val + rawScores[3].val;
     const distPts = 60 + (this.distance - 120) * 1.8;
-    const windPts = -this.wind * 8.5;
+    const windPts = -this.baseWind * 8.5;
 
     this.totalScore = (distPts + judgeTotal + windPts).toFixed(1);
     playSound('wyladowal', 1.0);
@@ -506,7 +537,6 @@ export const SkiJumpMode = {
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
     ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(300, 2500); ctx.fill(); ctx.stroke();
 
-    // Rysowanie śladów nart na zeskoku
     if (this.tracks.length > 1) {
       ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
       ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x, t.y + 12); else ctx.lineTo(t.x, t.y + 12); }); ctx.stroke();
@@ -533,14 +563,17 @@ export const SkiJumpMode = {
     ctx.save(); ctx.translate(this.bird.x, this.bird.y); ctx.rotate(this.bird.angle * Math.PI / 180);
     if (skierBodyImg.complete && skierBodyImg.naturalHeight !== 0) ctx.drawImage(skierBodyImg, -30, -20, 60, 40);
     if (playerImg) ctx.drawImage(playerImg, -10, -35, 30, 30);
-    if (this.hasCrashed) { ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill(); }
+
+    // Plama krwi po ostatecznym zatrzymaniu się
+    if (this.hasCrashed && Math.abs(this.bird.vx) < 0.1) {
+      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
     ctx.restore();
 
     ctx.fillStyle = '#ffffff';
     snowflakes.forEach(sn => { ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.s, 0, Math.PI*2); ctx.fill(); });
 
-    // ── HUD Wiatru i Prędkości ──
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; ctx.beginPath(); ctx.roundRect(GW - 90, 80, 80, 40, 8); ctx.fill();
     const windColor = this.wind > 0 ? '#22b422' : '#dc3232';
     txt(ctx, Math.abs(this.wind).toFixed(1) + ' m/s', GW - 50, 100, 'bold 14px Arial', windColor);
@@ -567,12 +600,11 @@ export const SkiJumpMode = {
       else txt(ctx, 'WYLĄDOWAŁ!', GW/2, GH/2 - 130, 'bold 36px Arial', '#22b422');
 
       const distPts = 60 + (this.distance - 120) * 1.8;
-      const windPts = -this.wind * 8.5;
+      const windPts = -this.baseWind * 8.5;
 
       txt(ctx, `Dystans: ${this.distance} m  (${distPts.toFixed(1)} pkt)`, GW/2, GH/2 - 90, 'bold 15px Arial', '#fff');
-      txt(ctx, `Wiatr: ${this.wind > 0 ? '+' : ''}${this.wind.toFixed(1)} m/s  (${windPts > 0 ? '+' : ''}${windPts.toFixed(1)} pkt)`, GW/2, GH/2 - 65, 'bold 15px Arial', '#aaa');
+      txt(ctx, `Wiatr: ${this.baseWind > 0 ? '+' : ''}${this.baseWind.toFixed(1)} m/s  (${windPts > 0 ? '+' : ''}${windPts.toFixed(1)} pkt)`, GW/2, GH/2 - 65, 'bold 15px Arial', '#aaa');
 
-      // Rendering Sędziów
       this.judges.forEach((j, i) => {
         const jx = GW/2 - 120 + i * 60; const jy = GH/2 - 10;
         if (j.img && j.img.complete) ctx.drawImage(j.img, jx - 20, jy - 20, 40, 40);
@@ -605,7 +637,7 @@ export const SkiJumpMode = {
       if (this.bird.x > 150 && this.bird.x < 305) {
         const distToOptimal = Math.abs(this.bird.x - 290);
         let power = 1.0 - (distToOptimal / 120); if (power < 0.2) power = 0.2;
-        this.bird.vy = -3.0 - (power * 5.5); // Mocniejsze, wyższe wybicie pod K-120
+        this.bird.vy = -3.0 - (power * 5.5);
         this.state = 'flight'; PlayerState.stats.jumps++; playSound('leci', 1.0);
         if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
         else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
