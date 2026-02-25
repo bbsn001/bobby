@@ -12,8 +12,25 @@
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #0a0a2e; font-family: Arial, sans-serif; overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-    canvas { display: block; touch-action: none; user-select: none; will-change: transform; transform: translateZ(0); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+
+    html, body {
+      width: 100%; height: 100%; background: #0a0a2e; font-family: Arial, sans-serif; overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Wyjątek: Pola tekstowe muszą działać! */
+    input { -webkit-user-select: auto; user-select: auto; }
+
+    canvas {
+      display: block; touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      will-change: transform; transform: translateZ(0);
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none; outline: none;
+    }
     .screen { position: fixed; inset: 0; background: #0a0a2e; display: flex; flex-direction: column; align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 100; }
     .screen-inner { width: 100%; max-width: 500px; padding: 32px 20px; display: flex; flex-direction: column; align-items: center; min-height: 100%; justify-content: center; }
     .screen-title { color: #ffd700; font-size: 2.2em; font-weight: bold; margin-bottom: 6px; text-align: center; }

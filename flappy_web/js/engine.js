@@ -670,3 +670,4 @@ function unlockAudio() {
   silence.play().catch(() => {}); audioUnlocked = true;
 }
 document.addEventListener('touchstart', unlockAudio, { once: true }); document.addEventListener('mousedown', unlockAudio, { once: true });
+window.addEventListener('contextmenu', e => { if (isGameCanvasVisible) e.preventDefault(); });
