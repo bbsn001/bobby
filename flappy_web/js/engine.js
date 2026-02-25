@@ -333,159 +333,152 @@ export const SpikesMode = {
   }
 };
 
-// ── Tryb Igrzysk Zimowych (K-120) ─────────────────────────────────────────────
-// Generowanie otoczenia (uruchamiane raz dla optymalizacji)
+// ── Tryb Igrzysk Zimowych (K-120 DELUXE) ──────────────────────────────────────
 const skiTrees = Array.from({length: 60}, () => ({ x: Math.random() * 2200, s: 0.4 + Math.random() * 0.8 }));
 const snowflakes = Array.from({length: 100}, () => ({ x: Math.random() * GW, y: Math.random() * GH, s: Math.random() * 2 + 1, v: Math.random() * 3 + 2 }));
 
+// Gładka, trygonometryczna krzywa zeskoku
 function getHillY(x) {
   if (x < 0) return 100;
   if (x < 250) return 100 + x * 1.2;               // Najazd (belka)
-  if (x < 300) return 400 - (x - 250) * 0.1;       // Próg (lekkie podbicie)
-  if (x < 1500) return 450 + (x - 300) * 0.85;     // Zeskok
-  if (x < 2000) return 1470 + (x - 1500) * 0.2;    // Wypłaszczenie
-  return 1570;
+  if (x < 280) return 400 + (x - 250) * 0.2;       // Wypłaszczenie przed progiem
+  if (x < 300) return 406;                          // Płaski próg
+  if (x < 1800) {
+    // Zeskok (krzywa sinusoidalna od 0 do PI/2)
+    const t = (x - 300) / 1500;
+    return 406 + 1070 * Math.sin(t * Math.PI / 2);
+  }
+  return 1476; // Płaski odjazd
 }
 
 export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
-  wind: 0, // Zmienna środowiskowa wiatru (-2.0 do +2.0)
-  speedKmh: 0, // Wirtualna prędkość
+  wind: 0, speedKmh: 0, tracks: [], judges: [], totalScore: 0,
   feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
 
   init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
-    this.feedbackText = ''; this.feedbackTimer = 0;
-    // Generowanie wiatru losowego: ujemny (w plecy), dodatni (pod narty)
+    this.feedbackText = ''; this.feedbackTimer = 0; this.tracks = [];
     this.wind = (Math.random() * 4) - 2.0;
+
+    // Losowanie 5 sędziów z puli postaci
+    const allKeys = Object.keys(CHARACTERS);
+    const shuffled = [...allKeys].sort(() => 0.5 - Math.random());
+    this.judges = shuffled.slice(0, 5).map(k => {
+      const j = { key: k, name: CHARACTERS[k].name, score: '0.0', img: new Image(), isMin: false, isMax: false };
+      j.img.src = `assets/characters/${CHARACTERS[k].img || k+'.png'}`;
+      return j;
+    });
     this.state = 'waiting';
   },
-  startGame() {
-    this.state = 'inrun';
-    this.bird.vx = 1.0;
-  },
+  startGame() { this.state = 'inrun'; this.bird.vx = 1.2; },
 
   showFeedback(text, color) {
-    this.feedbackText = text;
-    this.feedbackColor = color;
-    this.feedbackTimer = performance.now();
-    this.feedbackY = this.bird.y - 80;
+    this.feedbackText = text; this.feedbackColor = color;
+    this.feedbackTimer = performance.now(); this.feedbackY = this.bird.y - 80;
   },
 
   update(dt) {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
-
-    // Kalkulacja wirtualnej prędkości km/h
     this.speedKmh = Math.abs(this.bird.vx * 15 + this.bird.vy * 5);
 
+    // Zapis historii trasy (Ślady nart)
+    if ((this.state === 'inrun' || this.state === 'landed') && this.tracks.length < 1000) {
+      this.tracks.push({ x: this.bird.x, y: this.bird.y });
+    }
+
     snowflakes.forEach(sn => {
-      sn.y += sn.v * f;
-      // Wiatr wizualnie wpływa na kierunek śniegu
-      sn.x -= (this.bird.vx * 0.5 - this.wind * 1.5) * f;
+      sn.y += sn.v * f; sn.x -= (this.bird.vx * 0.5 - this.wind * 1.5) * f;
       if (sn.y > GH) { sn.y = -10; sn.x = Math.random() * GW; }
-      if (sn.x < 0) sn.x = GW + 10;
-      if (sn.x > GW) sn.x = -10;
+      if (sn.x < 0) sn.x = GW + 10; if (sn.x > GW) sn.x = -10;
     });
 
     if (this.state === 'inrun') {
-      this.bird.vx += 0.14 * f; // Gładsze przyspieszenie
+      this.bird.vx += 0.14 * f;
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
 
       if (this.bird.x > 305) {
         this.state = 'flight'; this.bird.vy = 2.5;
-        this.showFeedback('SPÓŹNIONY!', '#dc3232');
-        playSound('leci', 1.0);
+        this.showFeedback('SPÓŹNIONY!', '#dc3232'); playSound('leci', 1.0);
       }
     }
     else if (this.state === 'flight') {
-      // 1. Obrót (Rotacja nart)
-      if (this.isPressing) this.bird.angle -= 4.0 * f; // Agresywniejsze pochylenie
-      else this.bird.angle += 2.5 * f; // Ciążenie nart
+      if (this.isPressing) this.bird.angle -= 4.0 * f; else this.bird.angle += 2.5 * f;
+      if (this.bird.angle < -15) this.bird.angle = -15; if (this.bird.angle > 85) this.bird.angle = 85;
 
-      if (this.bird.angle < -15) this.bird.angle = -15;
-      if (this.bird.angle > 85) this.bird.angle = 85;
-
-      // 2. Wpływ Wiatru (Fizyka otoczenia)
       this.bird.vx += (this.wind * 0.003) * f;
-      let windLift = this.wind > 0 ? (this.wind * 0.02) : (this.wind * 0.01); // Wiatr pod narty unosi bardziej, niż w plecy dusi
+      let windLift = this.wind > 0 ? (this.wind * 0.02) : (this.wind * 0.01);
 
-      // 3. Dynamiczna Nośność (Krzywa tolerancji - idealny kąt to 15 stopni)
-      const optimalAngle = 15;
-      const angleDiff = Math.abs(this.bird.angle - optimalAngle);
-      let lift = 0;
-      let drag = 0.002; // Bazowy opór
+      // Płynna aerodynamika (Krzywa nośności)
+      const angleDiff = Math.abs(this.bird.angle - 15); // Ideał to 15 stopni
+      let lift = 0; let drag = 0.002;
+      if (angleDiff < 40) lift = 0.45 * (1 - (angleDiff / 40));
+      else drag += (angleDiff / 100) * 0.03;
 
-      if (angleDiff < 40) {
-        // Płynna krzywa nośności: max 0.45, im dalej od 15 stopni, tym mniejsza
-        lift = 0.45 * (1 - (angleDiff / 40));
-      } else {
-        // Twarde hamowanie przy złym kącie (tzw. "złapanie gumy")
-        drag += (angleDiff / 100) * 0.03;
-      }
-
-      this.bird.vx -= drag * f;
-      this.bird.vy += (GRAVITY - lift - windLift) * f;
-
-      this.bird.x += this.bird.vx * f;
-      this.bird.y += this.bird.vy * f;
+      this.bird.vx -= drag * f; this.bird.vy += (GRAVITY - lift - windLift) * f;
+      this.bird.x += this.bird.vx * f; this.bird.y += this.bird.vy * f;
 
       const terrainY = getHillY(this.bird.x);
-      if (this.bird.y >= terrainY - 15) {
-        this.bird.y = terrainY - 15;
-        this.land();
-      }
+      if (this.bird.y >= terrainY - 15) { this.bird.y = terrainY - 15; this.land(); }
     }
     else if (this.state === 'landed') {
       this.bird.vx -= 0.15 * f;
       if (this.bird.vx < 0) this.bird.vx = 0;
-      this.bird.x += this.bird.vx * f;
-      this.bird.y = getHillY(this.bird.x) - 15;
-
+      this.bird.x += this.bird.vx * f; this.bird.y = getHillY(this.bird.x) - 15;
       if (this.bird.vx <= 0 && performance.now() - this.gameOverAt > 1500) {
-        this.state = 'gameover';
-        this.checkRecord();
+        this.state = 'gameover'; this.checkRecord();
       }
     }
-
-    // Kamera z lekkim "wyprzedzeniem" w dół (żeby widzieć zeskok)
-    this.camera.x = this.bird.x - GW * 0.35;
-    this.camera.y = this.bird.y - GH * 0.4;
+    this.camera.x = this.bird.x - GW * 0.35; this.camera.y = this.bird.y - GH * 0.4;
   },
 
   land() {
-    this.state = 'landed';
-    this.gameOverAt = performance.now();
+    this.state = 'landed'; this.gameOverAt = performance.now();
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
-    // Rygorystyczny Telemark
     if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
-      this.hasCrashed = true;
-      this.bird.angle = 95;
-      this.showFeedback('GLEBA!', '#dc3232');
+      this.hasCrashed = true; this.bird.angle = 95; this.showFeedback('GLEBA!', '#dc3232');
     } else {
-      this.bird.angle = 40;
-      this.showFeedback('TELEMARK!', '#22b422');
+      this.bird.angle = 40; this.showFeedback('TELEMARK!', '#22b422');
     }
 
+    // --- SYSTEM NOT SĘDZIOWSKICH ---
+    this.judges.forEach(j => {
+      let base;
+      if (this.hasCrashed) base = 7 + Math.random() * 4;
+      else if (!this.telemark) base = 14 + Math.random() * 3.5;
+      else base = 17.5 + Math.random() * 2.5;
+      if (base > 20) base = 20;
+      j.score = (Math.round(base * 2) / 2).toFixed(1);
+    });
+
+    const rawScores = this.judges.map((j, idx) => ({val: parseFloat(j.score), idx})).sort((a,b) => a.val - b.val);
+    this.judges.forEach(j => { j.isMin = false; j.isMax = false; });
+    this.judges[rawScores[0].idx].isMin = true; this.judges[rawScores[4].idx].isMax = true;
+
+    const judgeTotal = rawScores[1].val + rawScores[2].val + rawScores[3].val;
+    const distPts = 60 + (this.distance - 120) * 1.8;
+    const windPts = -this.wind * 8.5;
+
+    this.totalScore = (distPts + judgeTotal + windPts).toFixed(1);
     playSound('wyladowal', 1.0);
   },
 
   checkRecord() {
-    if (!this.hasCrashed && this.distance > PlayerState.skiBestScore) {
-      PlayerState.skiBestScore = this.distance;
-      saveProgress(true);
-      playSound('brawo', 1.0);
+    const finalPoints = parseFloat(this.totalScore);
+    if (!this.hasCrashed && finalPoints > PlayerState.skiBestScore) {
+      PlayerState.skiBestScore = finalPoints;
+      saveProgress(true); playSound('brawo', 1.0);
     } else if (this.hasCrashed) {
-      PlayerState.stats.deaths++;
-      saveProgress(true);
+      PlayerState.stats.deaths++; saveProgress(true);
     }
   },
 
@@ -493,35 +486,32 @@ export const SkiJumpMode = {
     const grad = ctx.createLinearGradient(0, 0, 0, GH);
     grad.addColorStop(0, '#3b82f6'); grad.addColorStop(1, '#93c5fd');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, GW, GH);
-
-    ctx.save();
-    ctx.translate(-this.camera.x, -this.camera.y);
+    ctx.save(); ctx.translate(-this.camera.x, -this.camera.y);
 
     skiTrees.forEach(t => {
       const tx = t.x; const ty = getHillY(tx) - 15;
       if (tx > this.camera.x - 100 && tx < this.camera.x + GW + 100) {
-        ctx.fillStyle = '#064e3b';
-        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 18*t.s, ty + 50*t.s); ctx.lineTo(tx + 18*t.s, ty + 50*t.s); ctx.fill();
-        ctx.fillStyle = '#047857';
-        ctx.beginPath(); ctx.moveTo(tx, ty - 10*t.s); ctx.lineTo(tx - 12*t.s, ty + 30*t.s); ctx.lineTo(tx + 12*t.s, ty + 30*t.s); ctx.fill();
+        ctx.fillStyle = '#064e3b'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 18*t.s, ty + 50*t.s); ctx.lineTo(tx + 18*t.s, ty + 50*t.s); ctx.fill();
+        ctx.fillStyle = '#047857'; ctx.beginPath(); ctx.moveTo(tx, ty - 10*t.s); ctx.lineTo(tx - 12*t.s, ty + 30*t.s); ctx.lineTo(tx + 12*t.s, ty + 30*t.s); ctx.fill();
       }
     });
 
-    ctx.fillStyle = '#553c15';
-    ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 480); ctx.lineTo(150, 480); ctx.lineTo(-100, 200); ctx.fill();
-    ctx.fillStyle = '#3f2a0d';
-    ctx.beginPath(); ctx.moveTo(-100, 150); ctx.lineTo(250, 440); ctx.lineTo(250, 480); ctx.lineTo(-100, 200); ctx.fill();
-
-    ctx.fillStyle = '#e2e8f0';
-    ctx.beginPath(); ctx.moveTo(-100, 95); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(-100, 105); ctx.fill();
-
-    ctx.fillStyle = '#dc3232';
-    ctx.beginPath(); ctx.moveTo(270, 385); ctx.lineTo(300, 390); ctx.lineTo(300, 400); ctx.lineTo(270, 395); ctx.fill();
+    ctx.fillStyle = '#553c15'; ctx.beginPath(); ctx.moveTo(-100, 100); ctx.lineTo(250, 400); ctx.lineTo(250, 480); ctx.lineTo(150, 480); ctx.lineTo(-100, 200); ctx.fill();
+    ctx.fillStyle = '#3f2a0d'; ctx.beginPath(); ctx.moveTo(-100, 150); ctx.lineTo(250, 440); ctx.lineTo(250, 480); ctx.lineTo(-100, 200); ctx.fill();
+    ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.moveTo(-100, 95); ctx.lineTo(300, 396); ctx.lineTo(300, 406); ctx.lineTo(-100, 105); ctx.fill();
+    ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.moveTo(270, 390); ctx.lineTo(300, 396); ctx.lineTo(300, 406); ctx.lineTo(270, 400); ctx.fill();
 
     ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(300, 400);
+    ctx.beginPath(); ctx.moveTo(300, 406);
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
     ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(300, 2500); ctx.fill(); ctx.stroke();
+
+    // Rysowanie śladów nart na zeskoku
+    if (this.tracks.length > 1) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
+      ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x, t.y + 12); else ctx.lineTo(t.x, t.y + 12); }); ctx.stroke();
+      ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x - 8, t.y + 8); else ctx.lineTo(t.x - 8, t.y + 8); }); ctx.stroke();
+    }
 
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
     for (let d = 50; d <= 160; d += 10) {
@@ -530,55 +520,32 @@ export const SkiJumpMode = {
          ctx.strokeStyle = (d === 120) ? '#dc3232' : (d === 100) ? '#1d4ed8' : '#64748b';
          ctx.lineWidth = (d === 120 || d === 100) ? 4 : 2;
          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx, my + 40); ctx.stroke();
-         ctx.fillStyle = (d === 120) ? '#dc3232' : '#0f172a';
-         ctx.fillText(d + 'm', mx - 6, my + 30);
+         ctx.fillStyle = (d === 120) ? '#dc3232' : '#0f172a'; ctx.fillText(d + 'm', mx - 6, my + 30);
        }
     }
 
-    if (this.state === 'inrun' && this.bird.x > 150 && this.bird.x < 270) {
-      txt(ctx, 'GOTÓW...', this.bird.x, this.bird.y - 40, 'bold 20px Arial', '#fff');
-    }
-    if (this.state === 'inrun' && this.bird.x >= 270 && this.bird.x < 305) {
-      txt(ctx, 'SKACZ!', this.bird.x, this.bird.y - 40, 'bold 24px Arial', '#ffd700');
-    }
-
+    if (this.state === 'inrun' && this.bird.x > 150 && this.bird.x < 270) txt(ctx, 'GOTÓW...', this.bird.x, this.bird.y - 40, 'bold 20px Arial', '#fff');
+    if (this.state === 'inrun' && this.bird.x >= 270 && this.bird.x < 305) txt(ctx, 'SKACZ!', this.bird.x, this.bird.y - 40, 'bold 24px Arial', '#ffd700');
     if (this.feedbackTimer > 0 && performance.now() - this.feedbackTimer < 1500) {
-      this.feedbackY -= 0.5;
-      txt(ctx, this.feedbackText, this.bird.x, this.feedbackY, 'bold 22px Arial', this.feedbackColor);
+      this.feedbackY -= 0.5; txt(ctx, this.feedbackText, this.bird.x, this.feedbackY, 'bold 22px Arial', this.feedbackColor);
     }
 
-    ctx.save();
-    ctx.translate(this.bird.x, this.bird.y);
-    ctx.rotate(this.bird.angle * Math.PI / 180);
-
-    if (skierBodyImg.complete && skierBodyImg.naturalHeight !== 0) {
-      ctx.drawImage(skierBodyImg, -30, -20, 60, 40);
-    }
-    if (playerImg) {
-      ctx.drawImage(playerImg, -10, -35, 30, 30);
-    }
-
-    if (this.hasCrashed) {
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
-    }
+    ctx.save(); ctx.translate(this.bird.x, this.bird.y); ctx.rotate(this.bird.angle * Math.PI / 180);
+    if (skierBodyImg.complete && skierBodyImg.naturalHeight !== 0) ctx.drawImage(skierBodyImg, -30, -20, 60, 40);
+    if (playerImg) ctx.drawImage(playerImg, -10, -35, 30, 30);
+    if (this.hasCrashed) { ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill(); }
     ctx.restore();
-
-    ctx.restore(); // Koniec trybu kamery
+    ctx.restore();
 
     ctx.fillStyle = '#ffffff';
-    snowflakes.forEach(sn => {
-      ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.s, 0, Math.PI*2); ctx.fill();
-    });
+    snowflakes.forEach(sn => { ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.s, 0, Math.PI*2); ctx.fill(); });
 
-    // ── HUD: Wiatr i Prędkość ──
+    // ── HUD Wiatru i Prędkości ──
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; ctx.beginPath(); ctx.roundRect(GW - 90, 80, 80, 40, 8); ctx.fill();
-    const windColor = this.wind > 0 ? '#22b422' : '#dc3232'; // Zielony = pod narty, Czerwony = w plecy
+    const windColor = this.wind > 0 ? '#22b422' : '#dc3232';
     txt(ctx, Math.abs(this.wind).toFixed(1) + ' m/s', GW - 50, 100, 'bold 14px Arial', windColor);
-    ctx.save(); ctx.translate(GW - 50, 110);
-    if (this.wind < 0) { ctx.scale(-1, 1); }
-    ctx.fillStyle = windColor; ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(-15, -3); ctx.lineTo(-15, -7); ctx.lineTo(-25, 0); ctx.lineTo(-15, 7); ctx.lineTo(-15, 3); ctx.lineTo(0, 3); ctx.fill();
-    ctx.restore();
-
+    ctx.save(); ctx.translate(GW - 50, 110); if (this.wind < 0) { ctx.scale(-1, 1); }
+    ctx.fillStyle = windColor; ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(-15, -3); ctx.lineTo(-15, -7); ctx.lineTo(-25, 0); ctx.lineTo(-15, 7); ctx.lineTo(-15, 3); ctx.lineTo(0, 3); ctx.fill(); ctx.restore();
     txt(ctx, this.speedKmh.toFixed(1) + ' km/h', 50, 90, 'bold 16px Arial', '#fff');
 
     updateHUD(this.state === 'waiting' ? 0 : this.distance);
@@ -592,40 +559,54 @@ export const SkiJumpMode = {
       txt(ctx, '4. Tapnij przed ziemią (TELEMARK)', GW/2, GH/2 + 70, 'bold 16px Arial', '#ffd700');
     }
     else if (this.state === 'gameover') {
-      overlay(0.7);
-      if (this.hasCrashed) txt(ctx, 'GLEBA!', GW/2, GH/3, 'bold 50px Arial', '#dc3232');
-      else txt(ctx, 'USTAŁ!', GW/2, GH/3, 'bold 50px Arial', '#22b422');
+      overlay(0.8);
+      ctx.fillStyle = '#0f1432'; ctx.strokeStyle = '#6b21a8'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(GW/2 - 170, GH/2 - 180, 340, 340, 12); ctx.fill(); ctx.stroke();
 
-      txt(ctx, 'Dystans: ' + this.distance + ' m', GW/2, GH/2, 'bold 30px Arial', '#fff');
-      txt(ctx, 'Rekord: ' + PlayerState.skiBestScore + ' m', GW/2, GH/2 + 35, '16px Arial', '#ffd700');
+      if (this.hasCrashed) txt(ctx, 'UPADEK!', GW/2, GH/2 - 130, 'bold 36px Arial', '#dc3232');
+      else txt(ctx, 'WYLĄDOWAŁ!', GW/2, GH/2 - 130, 'bold 36px Arial', '#22b422');
+
+      const distPts = 60 + (this.distance - 120) * 1.8;
+      const windPts = -this.wind * 8.5;
+
+      txt(ctx, `Dystans: ${this.distance} m  (${distPts.toFixed(1)} pkt)`, GW/2, GH/2 - 90, 'bold 15px Arial', '#fff');
+      txt(ctx, `Wiatr: ${this.wind > 0 ? '+' : ''}${this.wind.toFixed(1)} m/s  (${windPts > 0 ? '+' : ''}${windPts.toFixed(1)} pkt)`, GW/2, GH/2 - 65, 'bold 15px Arial', '#aaa');
+
+      // Rendering Sędziów
+      this.judges.forEach((j, i) => {
+        const jx = GW/2 - 120 + i * 60; const jy = GH/2 - 10;
+        if (j.img && j.img.complete) ctx.drawImage(j.img, jx - 20, jy - 20, 40, 40);
+        else { ctx.fillStyle = '#333'; ctx.fillRect(jx-20, jy-20, 40, 40); }
+
+        let color = '#ffd700';
+        if (j.isMin || j.isMax) {
+          color = '#555'; ctx.strokeStyle = '#dc3232'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(jx - 15, jy + 30); ctx.lineTo(jx + 15, jy + 20); ctx.stroke();
+        }
+        txt(ctx, j.score, jx, jy + 35, 'bold 15px Arial', color);
+      });
+
+      txt(ctx, `NOTA ŁĄCZNA: ${this.totalScore} pkt`, GW/2, GH/2 + 80, 'bold 22px Arial', '#ffd700');
+      txt(ctx, `Rekord życiowy: ${PlayerState.skiBestScore} pkt`, GW/2, GH/2 + 105, '14px Arial', '#aaa');
 
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(10, GH - 80, 110, 64, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', 10 + 55, GH - 80 + 39, 'bold 16px Arial', '#fff');
-      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby skoczyć', GW/2, GH*2/3 + 40, '15px Arial', '#fff');
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij by skoczyć ponownie', GW/2, GH - 40, '15px Arial', '#fff');
     }
   },
 
   onAction(px, py) {
     if (px !== undefined && (this.state === 'waiting' || this.state === 'gameover')) {
-      if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) {
-        showLobby(); return;
-      }
+      if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) { showLobby(); return; }
     }
 
-    if (this.state === 'waiting') {
-      this.startGame();
-    }
+    if (this.state === 'waiting') this.startGame();
     else if (this.state === 'inrun') {
       if (this.bird.x > 150 && this.bird.x < 305) {
         const distToOptimal = Math.abs(this.bird.x - 290);
-        let power = 1.0 - (distToOptimal / 120);
-        if (power < 0.2) power = 0.2;
-
-        this.bird.vy = -2.5 - (power * 5.2);
-        this.state = 'flight';
-        PlayerState.stats.jumps++;
-        playSound('leci', 1.0);
-
+        let power = 1.0 - (distToOptimal / 120); if (power < 0.2) power = 0.2;
+        this.bird.vy = -3.0 - (power * 5.5); // Mocniejsze, wyższe wybicie pod K-120
+        this.state = 'flight'; PlayerState.stats.jumps++; playSound('leci', 1.0);
         if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
         else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
         else this.showFeedback('SŁABO', '#dc3232');
@@ -633,15 +614,9 @@ export const SkiJumpMode = {
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
-      // HARDCORE TELEMARK: Ekstremalnie małe okno na wciśnięcie (60 pikseli od ziemi)
-      if (terrainY - this.bird.y < 60) {
-        this.telemark = true;
-        this.showFeedback('PRZYGOTOWANY', '#93c5fd');
-      }
+      if (terrainY - this.bird.y < 180) { this.telemark = true; this.showFeedback('PRZYGOTOWANY', '#93c5fd'); }
     }
-    else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) {
-      this.resetState();
-    }
+    else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
   }
 };
 
