@@ -914,7 +914,7 @@ const FlappyMode = {
   // Hermetyzacja ptaka tylko dla tego trybu
   bird: {
     x: 80, y: 300, vy: 0,
-    _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 30, h: BIRD_SIZE - 30 },
 
     jump()     { this.vy = JUMP_FORCE; },
     update(dt) {
@@ -924,7 +924,7 @@ const FlappyMode = {
       this.y  += deltaY;
     },
 
-    rect() { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
+    rect() { this._r.x = this.x + 15; this._r.y = this.y + 15; return this._r; }
   },
 
   // Inicjalizacja sesji (Zastępuje initNewSession i resetGame)
