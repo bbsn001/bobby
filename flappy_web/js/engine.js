@@ -333,22 +333,22 @@ export const SpikesMode = {
   }
 };
 
-// ── Tryb Igrzysk Zimowych (K-120 DELUXE) ──────────────────────────────────────
-const skiTrees = Array.from({length: 60}, () => ({ x: Math.random() * 2200, s: 0.4 + Math.random() * 0.8 }));
-const snowflakes = Array.from({length: 100}, () => ({ x: Math.random() * GW, y: Math.random() * GH, s: Math.random() * 2 + 1, v: Math.random() * 3 + 2 }));
+// ── Tryb Igrzysk Zimowych (MAMUT K-200) ──────────────────────────────────────
+const skiTrees = Array.from({length: 120}, () => ({ x: Math.random() * 4000, s: 0.4 + Math.random() * 0.8 }));
+const snowflakes = Array.from({length: 120}, () => ({ x: Math.random() * GW, y: Math.random() * GH, s: Math.random() * 2 + 1, v: Math.random() * 3 + 2 }));
 
-// Gładka, trygonometryczna krzywa zeskoku
+// Ekstremalnie długa krzywa mamuciej skoczni
 function getHillY(x) {
   if (x < 0) return 100;
-  if (x < 250) return 100 + x * 1.2;               // Najazd (belka)
-  if (x < 280) return 400 + (x - 250) * 0.2;       // Wypłaszczenie przed progiem
-  if (x < 300) return 406;                          // Płaski próg
-  if (x < 1800) {
-    // Zeskok (krzywa sinusoidalna od 0 do PI/2)
-    const t = (x - 300) / 1500;
-    return 406 + 1070 * Math.sin(t * Math.PI / 2);
+  if (x < 250) return 100 + x * 1.2;               // Najazd
+  if (x < 280) return 400 + (x - 250) * 0.2;       // Wypłaszczenie
+  if (x < 300) return 406;                          // Próg
+  if (x < 3500) {
+    // Zeskok mamuta - rozciągnięty do 320 metrów
+    const t = (x - 300) / 3200;
+    return 406 + 1850 * Math.sin(t * Math.PI / 2);
   }
-  return 1476; // Płaski odjazd
+  return 2256; // Płaski odjazd na dole przepaści
 }
 
 export const SkiJumpMode = {
@@ -365,7 +365,6 @@ export const SkiJumpMode = {
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.feedbackText = ''; this.feedbackTimer = 0; this.tracks = [];
 
-    // Inicjalizacja bazowego wiatru dla sesji
     this.baseWind = (Math.random() * 4) - 2.0;
     this.wind = this.baseWind;
 
@@ -378,7 +377,7 @@ export const SkiJumpMode = {
     });
     this.state = 'waiting';
   },
-  startGame() { this.state = 'inrun'; this.bird.vx = 1.2; startWind(); },
+  startGame() { this.state = 'inrun'; this.bird.vx = 1.3; startWind(); }, // Szybszy start z belki
 
   showFeedback(text, color) {
     this.feedbackText = text; this.feedbackColor = color;
@@ -388,16 +387,16 @@ export const SkiJumpMode = {
   update(dt) {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
-    this.speedKmh = Math.abs(this.bird.vx * 15 + this.bird.vy * 5);
+    // Prędkość wizualna mocniej podbita na mamucie
+    this.speedKmh = Math.abs(this.bird.vx * 16 + this.bird.vy * 5.5);
     updateWind(this.speedKmh);
 
-    if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.tracks.length < 1000) {
+    if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.tracks.length < 1500) {
       this.tracks.push({ x: this.bird.x, y: this.bird.y });
     }
 
-    // Żywy wiatr (Dynamiczne turbulencje środowiskowe)
     if (this.state === 'flight') {
-      this.wind = this.baseWind + Math.sin(performance.now() * 0.002) * 0.8;
+       this.wind = this.baseWind + Math.sin(performance.now() * 0.002) * 0.8;
     }
 
     snowflakes.forEach(sn => {
@@ -407,7 +406,7 @@ export const SkiJumpMode = {
     });
 
     if (this.state === 'inrun') {
-      this.bird.vx += 0.14 * f;
+      this.bird.vx += 0.15 * f; // Lepsze przyspieszenie na najeździe
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
@@ -426,14 +425,15 @@ export const SkiJumpMode = {
 
       const angleDiff = Math.abs(this.bird.angle - 15);
       let lift = 0; let drag = 0.002;
-      if (angleDiff < 40) lift = 0.45 * (1 - (angleDiff / 40));
+
+      // BUFF NOŚNOŚCI DLA MAMUTA (dłuższe szybowanie)
+      if (angleDiff < 40) lift = 0.465 * (1 - (angleDiff / 40));
       else drag += (angleDiff / 100) * 0.03;
 
       const terrainY = getHillY(this.bird.x);
 
-      // Poduszka Powietrzna (Ground Effect)
-      if (terrainY - this.bird.y < 45 && angleDiff < 20) {
-        lift += 0.20;
+      if (terrainY - this.bird.y < 50 && angleDiff < 25) {
+         lift += 0.25; // Mocniejsza poduszka powietrzna
       }
 
       this.bird.vx -= drag * f; this.bird.vy += (GRAVITY - lift - windLift) * f;
@@ -443,7 +443,6 @@ export const SkiJumpMode = {
     }
     else if (this.state === 'landed') {
       if (this.hasCrashed) {
-        // Fizyka Szmacianki (Ragdoll / Tumbling)
         this.bird.angle += 18 * f;
         this.bird.vy += GRAVITY * f;
         this.bird.x += this.bird.vx * f;
@@ -451,14 +450,14 @@ export const SkiJumpMode = {
 
         const groundY = getHillY(this.bird.x) - 15;
         if (this.bird.y >= groundY) {
-          this.bird.y = groundY;
-          this.bird.vy = -this.bird.vy * 0.45; // Wektor Odbicia
-          this.bird.vx -= 0.4 * f; // Tarcie fizyczne
+           this.bird.y = groundY;
+           this.bird.vy = -this.bird.vy * 0.45;
+           this.bird.vx -= 0.4 * f;
         }
         if (this.bird.vx < 0) this.bird.vx = 0;
+
       } else {
-        // Czysty odjazd z telemarkiem
-        this.bird.vx -= 0.15 * f;
+        this.bird.vx -= 0.18 * f; // Mocniejsze hamowanie na wybiegu
         if (this.bird.vx < 0) this.bird.vx = 0;
         this.bird.x += this.bird.vx * f; this.bird.y = getHillY(this.bird.x) - 15;
       }
@@ -475,10 +474,11 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
+    // Ekstremalnie ciasny telemark z racji prędkości na mamucie
     if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
       this.hasCrashed = true;
-      this.bird.vy = -4.5; // Zapłon systemu Ragdoll (Wybicie w górę)
-      this.bird.vx *= 0.8;
+      this.bird.vy = -5.0;
+      this.bird.vx *= 0.85;
       this.showFeedback('GLEBA!', '#dc3232');
     } else {
       this.bird.angle = 40; this.showFeedback('TELEMARK!', '#22b422');
@@ -498,7 +498,8 @@ export const SkiJumpMode = {
     this.judges[rawScores[0].idx].isMin = true; this.judges[rawScores[4].idx].isMax = true;
 
     const judgeTotal = rawScores[1].val + rawScores[2].val + rawScores[3].val;
-    const distPts = 60 + (this.distance - 120) * 1.8;
+    // PUNKTACJA MAMUCIA: Baza 120 pkt za punkt K (200m), 1.2 pkt za metr
+    const distPts = 120 + (this.distance - 200) * 1.2;
     const windPts = -this.baseWind * 8.5;
 
     this.totalScore = (distPts + judgeTotal + windPts).toFixed(1);
@@ -537,7 +538,8 @@ export const SkiJumpMode = {
     ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(300, 406);
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
-    ctx.lineTo(this.camera.x + GW + 200, 2500); ctx.lineTo(300, 2500); ctx.fill(); ctx.stroke();
+    // Dociągnięcie białego tła mocno w dół dla mamuta
+    ctx.lineTo(this.camera.x + GW + 200, 3200); ctx.lineTo(300, 3200); ctx.fill(); ctx.stroke();
 
     if (this.tracks.length > 1) {
       ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
@@ -545,14 +547,15 @@ export const SkiJumpMode = {
       ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x - 8, t.y + 8); else ctx.lineTo(t.x - 8, t.y + 8); }); ctx.stroke();
     }
 
+    // Nowe znaczniki odległości na mamuta (co 20m, od 100m do 320m)
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
-    for (let d = 50; d <= 160; d += 10) {
+    for (let d = 100; d <= 320; d += 20) {
        const mx = 300 + (d * 10); const my = getHillY(mx);
        if (mx > this.camera.x - 50 && mx < this.camera.x + GW + 50) {
-         ctx.strokeStyle = (d === 120) ? '#dc3232' : (d === 100) ? '#1d4ed8' : '#64748b';
-         ctx.lineWidth = (d === 120 || d === 100) ? 4 : 2;
+         ctx.strokeStyle = (d === 200) ? '#dc3232' : (d === 240) ? '#1d4ed8' : '#64748b';
+         ctx.lineWidth = (d === 200 || d === 240) ? 4 : 2;
          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx, my + 40); ctx.stroke();
-         ctx.fillStyle = (d === 120) ? '#dc3232' : '#0f172a'; ctx.fillText(d + 'm', mx - 6, my + 30);
+         ctx.fillStyle = (d === 200) ? '#dc3232' : '#0f172a'; ctx.fillText(d + 'm', mx - 6, my + 30);
        }
     }
 
@@ -566,9 +569,8 @@ export const SkiJumpMode = {
     if (skierBodyImg.complete && skierBodyImg.naturalHeight !== 0) ctx.drawImage(skierBodyImg, -30, -20, 60, 40);
     if (playerImg) ctx.drawImage(playerImg, -10, -35, 30, 30);
 
-    // Plama krwi po ostatecznym zatrzymaniu się
     if (this.hasCrashed && Math.abs(this.bird.vx) < 0.1) {
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
     }
     ctx.restore();
     ctx.restore();
@@ -587,7 +589,7 @@ export const SkiJumpMode = {
 
     if (this.state === 'waiting') {
       overlay(0.5);
-      txt(ctx, 'IGRZYSKA (K-120)', GW/2, GH/4, 'bold 36px Arial', '#e0f2fe');
+      txt(ctx, 'MAMUT (K-200)', GW/2, GH/4, 'bold 36px Arial', '#e0f2fe');
       txt(ctx, '1. Tapnij aby ruszyć', GW/2, GH/2 - 20, '16px Arial', '#fff');
       txt(ctx, '2. Tapnij na CZERWONYM PROGU', GW/2, GH/2 + 10, 'bold 16px Arial', '#dc3232');
       txt(ctx, '3. Trzymaj ekran by płasko lecieć', GW/2, GH/2 + 40, '16px Arial', '#fff');
@@ -601,7 +603,7 @@ export const SkiJumpMode = {
       if (this.hasCrashed) txt(ctx, 'UPADEK!', GW/2, GH/2 - 130, 'bold 36px Arial', '#dc3232');
       else txt(ctx, 'WYLĄDOWAŁ!', GW/2, GH/2 - 130, 'bold 36px Arial', '#22b422');
 
-      const distPts = 60 + (this.distance - 120) * 1.8;
+      const distPts = 120 + (this.distance - 200) * 1.2;
       const windPts = -this.baseWind * 8.5;
 
       txt(ctx, `Dystans: ${this.distance} m  (${distPts.toFixed(1)} pkt)`, GW/2, GH/2 - 90, 'bold 15px Arial', '#fff');
@@ -639,7 +641,8 @@ export const SkiJumpMode = {
       if (this.bird.x > 150 && this.bird.x < 305) {
         const distToOptimal = Math.abs(this.bird.x - 290);
         let power = 1.0 - (distToOptimal / 120); if (power < 0.2) power = 0.2;
-        this.bird.vy = -3.0 - (power * 5.5);
+        // Potężne wybicie dla lotów narciarskich
+        this.bird.vy = -3.8 - (power * 6.5);
         this.state = 'flight'; PlayerState.stats.jumps++; playSound('leci', 1.0);
         if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
         else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
@@ -648,7 +651,8 @@ export const SkiJumpMode = {
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
-      if (terrainY - this.bird.y < 180) { this.telemark = true; this.showFeedback('PRZYGOTOWANY', '#93c5fd'); }
+      // Okno telemarku na mamucie minimalnie zredukowane by wymusić skupienie
+      if (terrainY - this.bird.y < 200) { this.telemark = true; this.showFeedback('PRZYGOTOWANY', '#93c5fd'); }
     }
     else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
   }
