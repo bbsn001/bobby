@@ -355,15 +355,21 @@ export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
-  baseWind: 0, wind: 0, speedKmh: 0, tracks: [], judges: [], totalScore: 0,
+  baseWind: 0, wind: 0, speedKmh: 0, judges: [], totalScore: 0,
   feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
+
+  // ZERO-ALLOCATION TRACKS
+  tracksX: new Float32Array(1500),
+  tracksY: new Float32Array(1500),
+  trackCount: 0,
 
   init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
     stopWind();
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
-    this.feedbackText = ''; this.feedbackTimer = 0; this.tracks = [];
+    this.feedbackText = ''; this.feedbackTimer = 0;
+    this.trackCount = 0; // Resetujemy licznik bez niszczenia pamięci RAM
 
     this.baseWind = (Math.random() * 4) - 2.0;
     this.wind = this.baseWind;
@@ -377,7 +383,7 @@ export const SkiJumpMode = {
     });
     this.state = 'waiting';
   },
-  startGame() { this.state = 'inrun'; this.bird.vx = 1.3; startWind(); }, // Szybszy start z belki
+  startGame() { this.state = 'inrun'; this.bird.vx = 1.3; startWind(); },
 
   showFeedback(text, color) {
     this.feedbackText = text; this.feedbackColor = color;
@@ -391,8 +397,10 @@ export const SkiJumpMode = {
     this.speedKmh = Math.abs(this.bird.vx * 16 + this.bird.vy * 5.5);
     updateWind(this.speedKmh);
 
-    if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.tracks.length < 1500) {
-      this.tracks.push({ x: this.bird.x, y: this.bird.y });
+    if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.trackCount < 1500) {
+      this.tracksX[this.trackCount] = this.bird.x;
+      this.tracksY[this.trackCount] = this.bird.y;
+      this.trackCount++;
     }
 
     if (this.state === 'flight') {
@@ -562,10 +570,10 @@ export const SkiJumpMode = {
     // Dociągnięcie białego tła mocno w dół dla mamuta
     ctx.lineTo(this.camera.x + GW + 200, 3200); ctx.lineTo(300, 3200); ctx.fill(); ctx.stroke();
 
-    if (this.tracks.length > 1) {
+    if (this.trackCount > 1) {
       ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
-      ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x, t.y + 12); else ctx.lineTo(t.x, t.y + 12); }); ctx.stroke();
-      ctx.beginPath(); this.tracks.forEach((t, i) => { if(i===0) ctx.moveTo(t.x - 8, t.y + 8); else ctx.lineTo(t.x - 8, t.y + 8); }); ctx.stroke();
+      ctx.beginPath(); for(let i=0; i<this.trackCount; i++) { if(i===0) ctx.moveTo(this.tracksX[i], this.tracksY[i] + 12); else ctx.lineTo(this.tracksX[i], this.tracksY[i] + 12); } ctx.stroke();
+      ctx.beginPath(); for(let i=0; i<this.trackCount; i++) { if(i===0) ctx.moveTo(this.tracksX[i] - 8, this.tracksY[i] + 8); else ctx.lineTo(this.tracksX[i] - 8, this.tracksY[i] + 8); } ctx.stroke();
     }
 
     // Nowe znaczniki odległości na mamuta (co 20m, od 100m do 320m)
