@@ -411,8 +411,9 @@ export const SkiJumpMode = {
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
 
-      if (this.bird.x > 305) {
-        this.state = 'flight'; this.bird.vy = 2.5;
+      if (this.bird.x > 315) { // Dałem więcej czasu na reakcję
+        this.state = 'flight';
+        this.bird.vy = -1.5; // Zamiast spadać w dół, gra daje darmowe, słabe wybicie
         this.showFeedback('SPÓŹNIONY!', '#dc3232'); playSound('leci', 1.0);
       }
     }
@@ -467,7 +468,11 @@ export const SkiJumpMode = {
         this.state = 'gameover'; this.checkRecord();
       }
     }
-    this.camera.x = this.bird.x - GW * 0.35; this.camera.y = this.bird.y - GH * 0.4;
+    // ZMIANA KAMERY: Przesuwamy punkt skupienia.
+    // bird.y - GH * 0.25 (ptak na 1/4 wysokości od góry ekranu, widać ogromny dół!)
+    // bird.x - GW * 0.25 (ptak na 1/4 szerokości od lewej, widać daleeeko w przód)
+    this.camera.x = this.bird.x - GW * 0.25;
+    this.camera.y = this.bird.y - GH * 0.25;
   },
 
   land() {
@@ -475,21 +480,36 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
-    // ŁATWIEJSZY TELEMARK: Kąt bezpieczeństwa powiększony (od 0 do 75 stopni wychylenia)
-    if (!this.telemark || this.bird.angle < 0 || this.bird.angle > 75) {
+    // NOWY SYSTEM LĄDOWANIA (Telemark vs Dwie Nogi vs Gleba)
+    let isSafe = false;
+    let isTwoFeet = false;
+
+    if (this.telemark && this.bird.angle > -15 && this.bird.angle < 85) {
+      isSafe = true; // Telemark wybacza PRAWIE WSZYSTKO
+    } else if (!this.telemark && this.bird.angle > 0 && this.bird.angle < 65) {
+      isSafe = true; // Zapomniałeś kliknąć, ale leciałeś prosto? Lądujesz bezpiecznie!
+      isTwoFeet = true;
+    }
+
+    if (!isSafe) {
       this.hasCrashed = true;
       this.bird.vy = -5.0;
       this.bird.vx *= 0.85;
       this.showFeedback('GLEBA!', '#dc3232');
+    } else if (isTwoFeet) {
+      this.bird.angle = 40;
+      this.showFeedback('DWIE NOGI', '#aaa');
     } else {
-      this.bird.angle = 40; this.showFeedback('TELEMARK!', '#22b422');
+      this.bird.angle = 40;
+      this.showFeedback('TELEMARK!', '#22b422');
     }
 
+    // Inteligentni sędziowie (kary za dwie nogi)
     this.judges.forEach(j => {
       let base = 18;
-      if (this.hasCrashed) base = 7 + Math.random() * 4;
-      else if (!this.telemark) base = 14 + Math.random() * 3.5;
-      else base = 17.5 + Math.random() * 2.5;
+      if (this.hasCrashed) base = 6 + Math.random() * 4;          // 6.0 - 10.0 (Upadek)
+      else if (isTwoFeet) base = 13 + Math.random() * 3;          // 13.0 - 16.0 (Kara za dwie nogi)
+      else base = 17.5 + Math.random() * 2.5;                     // 17.5 - 20.0 (Idealny Telemark)
       if (base > 20) base = 20;
       j.score = (Math.round(base * 2) / 2).toFixed(1);
     });
