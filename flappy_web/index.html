@@ -173,6 +173,7 @@
     <button id="lobbyPlay" class="btn btn-yellow">▶ GRAJ</button>
     <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
     <button id="lobbySpikes" class="btn" style="display:none; background:#dc3232; color:#fff; margin-top:10px; border:2px solid #ff5555; box-shadow: 0 0 15px #dc323288;">🔥 TRYB KOLCÓW (HARDCORE)</button>
+    <button id="lobbyStats" class="btn btn-dark" style="margin-top:10px;">📊 STATYSTYKI (SITREP)</button>
   </div>
 </div>
 
@@ -184,6 +185,35 @@
       <div id="shopCoins" class="coins" style="margin:0">🎵 0</div>
     </div>
     <div id="shopGrid" class="shop-grid"></div>
+  </div>
+</div>
+
+<!-- ── Stats screen ─────────────────────────────────────────────────────── -->
+<div id="statsScreen" class="screen" style="display:none">
+  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+    <div class="shop-header">
+      <button id="statsBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
+      <div class="coins" style="margin:0;color:#8be;">SITREP</div>
+    </div>
+
+    <div style="width:100%; background:#131340; border:2px solid #2a2a6a; border-radius:12px; padding:20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+      <div style="color:#ffd700; font-size:1.1rem; font-weight:bold; margin-bottom:20px; text-align:center; letter-spacing:1px;">DOKUMENTACJA OPERACYJNA</div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;">
+        <span style="color:#aaa;">Łączna liczba zgonów:</span>
+        <span id="statDeaths" style="color:#dc3232; font-weight:bold; font-size:1.1rem;">0</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;">
+        <span style="color:#aaa;">Wykonane skoki (Taps):</span>
+        <span id="statJumps" style="color:#fff; font-weight:bold; font-size:1.1rem;">0</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;">
+        <span style="color:#aaa;">Odbicia w Spikes:</span>
+        <span id="statSpikes" style="color:#fff; font-weight:bold; font-size:1.1rem;">0</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -261,10 +291,12 @@ async function loadPlayerData(nick, pin) {
         if (typeof skins === 'string') { try { skins = JSON.parse(skins); } catch { skins = ['bobby']; } }
         if (!Array.isArray(skins)) skins = ['bobby'];
       }
-      return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby', score: d.score ?? 0 };
+      let stats = d.stats || { jumps: 0, deaths: 0, spikesHits: 0 };
+      return { coins: d.coins ?? 0, unlockedSkins: skins, activeSkin: d.activeSkin ?? 'bobby', score: d.score ?? 0, stats };
     } else {
       await setDoc(doc(db, 'leaderboard', nick), {
-        nick, score: 0, coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', pin, date: new Date()
+        nick, score: 0, coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', pin, date: new Date(),
+        stats: { jumps: 0, deaths: 0, spikesHits: 0 }
       });
     }
   } catch(e) { console.warn('loadPlayerData:', e); }
@@ -282,7 +314,8 @@ async function saveProgress(roundScore = playerBestScore, immediate = false) {
       const ref = doc(db, 'leaderboard', playerNick);
       await setDoc(ref, {
         nick: playerNick, score: playerBestScore, date: new Date(),
-        coins: playerCoins, unlockedSkins, activeSkin, pin: playerPin
+        coins: playerCoins, unlockedSkins, activeSkin, pin: playerPin,
+        stats: playerStats
       }, { merge: true });
     } catch(e) { console.warn('saveProgress:', e); }
   };
@@ -518,6 +551,7 @@ async function applyActiveSkin(key) {
 }
 
 // ── Player state ──────────────────────────────────────────────────────────────
+let playerStats   = { jumps: 0, deaths: 0, spikesHits: 0 };
 let playerNick    = '';
 let playerCoins   = 0;
 let unlockedSkins = ['bobby'];
@@ -554,6 +588,7 @@ const _pr = { x: 0, y: 0, w: 0, h: 0 };
 const nickScreen  = document.getElementById('nickScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const shopScreen  = document.getElementById('shopScreen');
+const statsScreen = document.getElementById('statsScreen');
 
 // ── DOM HUD elements ──────────────────────────────────────────────────────────
 const hudEl      = document.getElementById('hud');
@@ -585,7 +620,7 @@ let isGameCanvasVisible = false;
 
 function hideAll() {
   nickScreen.style.display = lobbyScreen.style.display =
-  shopScreen.style.display = canvas.style.display =
+  shopScreen.style.display = statsScreen.style.display = canvas.style.display =
   hudEl.style.display = 'none';
   isGameCanvasVisible = false;
 }
@@ -598,6 +633,13 @@ function showShop() {
   hideAll();
   shopScreen.style.display = 'flex';
   renderShop();
+}
+function showStats() {
+  hideAll();
+  statsScreen.style.display = 'flex';
+  document.getElementById('statDeaths').textContent = playerStats.deaths;
+  document.getElementById('statJumps').textContent = playerStats.jumps;
+  document.getElementById('statSpikes').textContent = playerStats.spikesHits;
 }
 function showGame() {
   hideAll();
@@ -637,6 +679,7 @@ async function onNickConfirm() {
   playerPin  = pin;
 
   playerCoins     = data.coins;
+  playerStats     = data.stats || { jumps: 0, deaths: 0, spikesHits: 0 };
   unlockedSkins   = data.unlockedSkins;
   playerBestScore = data.score;
   if (!unlockedSkins.includes('bobby')) unlockedSkins.push('bobby');
@@ -810,6 +853,10 @@ function onShopBack() {
 }
 document.getElementById('shopBack').addEventListener('click',    () => onShopBack());
 document.getElementById('shopBack').addEventListener('touchend', e => { e.preventDefault(); onShopBack(); });
+document.getElementById('lobbyStats').addEventListener('click', showStats);
+document.getElementById('lobbyStats').addEventListener('touchend', e => { e.preventDefault(); showStats(); });
+document.getElementById('statsBack').addEventListener('click', showLobby);
+document.getElementById('statsBack').addEventListener('touchend', e => { e.preventDefault(); showLobby(); });
 
 // ── Ostateczna Architektura Sklepu (DOM Hydration & Optimistic UI) ────────────
 let shopInitialized = false;
@@ -916,7 +963,7 @@ const FlappyMode = {
     x: 80, y: 300, vy: 0,
     _r: { x: 0, y: 0, w: BIRD_SIZE - 30, h: BIRD_SIZE - 30 },
 
-    jump()     { this.vy = JUMP_FORCE; },
+    jump()     { this.vy = JUMP_FORCE; playerStats.jumps++; },
     update(dt) {
       const f = dt / 16.667;
       const deltaY = this.vy * f + 0.5 * GRAVITY * f * f;
@@ -959,6 +1006,7 @@ const FlappyMode = {
       this.bird.vy = JUMP_FORCE;
       return;
     }
+    playerStats.deaths++;
     stopMusic();
     this.gameOverAt = performance.now();
     this.state = 'gameover';
@@ -1194,7 +1242,7 @@ const SpikesMode = {
     vx: 4.5, vy: 0,
     _r: { x: 0, y: 0, w: BIRD_SIZE - 12, h: BIRD_SIZE - 12 },
 
-    jump() { this.vy = JUMP_FORCE; },
+    jump() { this.vy = JUMP_FORCE; playerStats.jumps++; },
     update(dt) {
       const f = dt / 16.667;
       const deltaY = this.vy * f + 0.5 * GRAVITY * f * f;
@@ -1237,6 +1285,7 @@ const SpikesMode = {
       this.bird.vy = JUMP_FORCE;
       return;
     }
+    playerStats.deaths++;
     stopSpikesAudio();
     this.gameOverAt = performance.now();
     this.state = 'gameover';
@@ -1305,6 +1354,7 @@ const SpikesMode = {
   },
 
   onWallHit(nextWall) {
+    playerStats.spikesHits++;
     const pts = S_DOUBLE ? 2 : 1;
     this.score += pts;
     playerCoins += pts;
