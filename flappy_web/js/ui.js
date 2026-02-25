@@ -135,18 +135,12 @@ function updateLobbyUI() {
   }
 
   const skiBtn = document.getElementById('lobbySki');
-  const hasSki = PlayerState.unlockedSkins.includes('skijump');
-
   skiBtn.style.display = 'flex';
-  if (hasSki) {
-    skiBtn.style.background = '#e0f2fe'; skiBtn.style.color = '#1e3a8a';
-    skiBtn.style.borderColor = '#7dd3fc'; skiBtn.style.boxShadow = '0 0 15px #7dd3fc88';
-    skiBtn.textContent = '🏔️ GRAJ W IGRZYSKA';
-  } else {
-    skiBtn.style.background = '#1e1e4a'; skiBtn.style.color = '#666';
-    skiBtn.style.borderColor = '#333'; skiBtn.style.boxShadow = 'none';
-    skiBtn.textContent = `🔒 KUP IGRZYSKA (\uD83C\uDFB5 ${GAME_CONFIG.SKI_MODE_PRICE})`;
-  }
+  skiBtn.style.background = '#e0f2fe';
+  skiBtn.style.color = '#1e3a8a';
+  skiBtn.style.borderColor = '#7dd3fc';
+  skiBtn.style.boxShadow = '0 0 15px #7dd3fc88';
+  skiBtn.textContent = '🏔️ GRAJ W IGRZYSKA';
 }
 
 let charPickerInitialized = false;
@@ -259,26 +253,14 @@ document.getElementById('lobbySpikes').addEventListener('touchend', e => { e.pre
 
 async function onLobbySki() {
   if (lobbyPlayGuard) return;
-  const hasSki = PlayerState.unlockedSkins.includes('skijump');
 
-  if (!hasSki) {
-    if (PlayerState.coins < GAME_CONFIG.SKI_MODE_PRICE) {
-      document.getElementById('lobbySki').style.background = '#dc3232';
-      setTimeout(() => updateLobbyUI(), 300);
-      return;
-    }
-    PlayerState.coins -= GAME_CONFIG.SKI_MODE_PRICE;
-    PlayerState.unlockedSkins.push('skijump');
-    await saveProgress(true);
-    updateLobbyUI();
-    return;
-  }
-
+  // Bezpośredni wjazd na skocznię (Paywall usunięty)
   lobbyPlayGuard = true;
   computeSessionParams();
   await applyActiveSkin(PlayerState.activeSkin);
   SceneManager.changeScene(SkiJumpMode);
   showGame();
+
   setTimeout(() => { lobbyPlayGuard = false; }, 500);
 }
 
