@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v5';
+const CACHE_NAME = 'bobby-bird-v6';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -13,6 +13,10 @@ const ASSETS_TO_CACHE = [
   './js/ui.js',
   './js/engine.js',
   './js/bounties.js',
+
+  // Dodajemy Cwela do wora:
+  './assets/characters/cwel.png',
+  './assets/collectibles/cwel_col.png',
 
   // Stare assety bez zmian...
   './assets/characters/bobby.png',

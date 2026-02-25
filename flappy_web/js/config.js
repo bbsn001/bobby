@@ -25,6 +25,8 @@ export const CHARACTERS = {
   szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:750,  col:'scat.png',       bonuses:['double'], desc:'×2 punkty i monety' },
   tom:      { name:'Tom',       img:'tom.png',      price:950,  col:'wozek.png',      bonuses:['extralife','double','speed-5'], desc:'+życie, ×2 pkt, rury −5%' },
   majka:    { name:'Majka 👑',  img:'majka.png',    price:1200, col:'onlyfans.png',   bonuses:['gap+30','speed-15','double','extralife'], desc:'WSZYSTKO: −15%, +30px, ×2, +życie', special:true },
+  // NOWA POSTAĆ FOMO:
+  cwel:     { name:'Cwel',      img:'cwel.png',     price:500,  col:'cwel_col.png',   bonuses:['gap+30'], desc:'przelot aż +30px', isFomo: true }
 };
 
 export const CHAR_KEYS = Object.keys(CHARACTERS);

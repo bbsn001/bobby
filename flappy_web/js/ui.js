@@ -177,9 +177,19 @@ function renderCharPicker() {
   }
 
   CHAR_KEYS.forEach(key => {
+    const ch     = CHARACTERS[key];
     const owned  = PlayerState.unlockedSkins.includes(key);
     const active = PlayerState.activeSkin === key;
-    const ui = charPickerUI[key];
+    const ui     = charPickerUI[key];
+
+    // Anty-Clutter: Ukrywamy postacie FOMO w Lobby, jeśli ich nie kupiłeś
+    if (ch.isFomo && !owned) {
+      ui.wrap.style.display = 'none';
+      return;
+    } else {
+      ui.wrap.style.display = 'block';
+    }
+
     ui.wrap.style.border  = `2px solid ${active ? '#ffd700' : 'transparent'}`;
     ui.wrap.style.opacity = owned ? '1' : '0.4';
     ui.wrap.style.cursor  = owned ? 'pointer' : 'default';
@@ -274,6 +284,11 @@ function renderShop() {
     shopInitialized = true;
   }
 
+  // Definicja Okna Czasowego FOMO (Piątek 20:00 - Niedziela 23:59)
+  const now = new Date();
+  const day = now.getDay(); // 0 = Niedziela, 5 = Piątek, 6 = Sobota
+  const isWeekend = (day === 0 || day === 6 || (day === 5 && now.getHours() >= 20));
+
   CHAR_KEYS.forEach(key => {
     const ch       = CHARACTERS[key];
     const owned    = PlayerState.unlockedSkins.includes(key);
@@ -282,9 +297,32 @@ function renderShop() {
     const ui       = shopUI[key];
 
     ui.card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
-    ui.btn.className  = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
-    ui.btn.textContent = isActive ? '✓ AKTYWNA' : owned ? 'WYBIERZ' : canBuy ? `KUP \uD83C\uDFB5${ch.price}` : `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
-    ui.btn.disabled = isActive || (!owned && !canBuy);
+
+    // Logika wyłączności FOMO
+    if (ch.isFomo && !owned) {
+      if (isWeekend) {
+        // Okno otwarte: Agresywne wizualia
+        ui.card.style.borderColor = '#ff4500';
+        ui.card.style.boxShadow = '0 0 15px rgba(255, 69, 0, 0.6)';
+        ui.btn.className = 'cc-btn ' + (canBuy ? 'buy' : 'locked');
+        ui.btn.innerHTML = canBuy ? `🔥 KUP \uD83C\uDFB5${ch.price}` : `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
+        ui.btn.disabled = !canBuy;
+      } else {
+        // Okno zamknięte: Twarda blokada
+        ui.card.style.borderColor = '#2a2a6a';
+        ui.card.style.boxShadow = 'none';
+        ui.card.style.opacity = '0.5';
+        ui.btn.className = 'cc-btn locked';
+        ui.btn.innerHTML = '🔒 WRÓĆ W WEEKEND';
+        ui.btn.disabled = true;
+      }
+    } else {
+      // Standardowa logika dla reszty postaci (i kupionych FOMO)
+      if (ch.isFomo) { ui.card.style.borderColor = isActive ? '#22b422' : '#ff4500'; ui.card.style.boxShadow = 'none'; ui.card.style.opacity = '1'; }
+      ui.btn.className  = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
+      ui.btn.textContent = isActive ? '✓ AKTYWNA' : owned ? 'WYBIERZ' : canBuy ? `KUP \uD83C\uDFB5${ch.price}` : `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
+      ui.btn.disabled = isActive || (!owned && !canBuy);
+    }
   });
 }
 
