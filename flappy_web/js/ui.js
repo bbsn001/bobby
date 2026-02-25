@@ -11,8 +11,9 @@ import { stopMusic, stopSpikesAudio } from './audio.js';
 const nickScreen  = document.getElementById('nickScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const shopScreen  = document.getElementById('shopScreen');
-const statsScreen = document.getElementById('statsScreen');
-const hudEl       = document.getElementById('hud');
+const statsScreen    = document.getElementById('statsScreen');
+const bountiesScreen = document.getElementById('bountiesScreen');
+const hudEl          = document.getElementById('hud');
 const canvas      = document.getElementById('gameCanvas');
 
 // ── HUD Management ────────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ export function updateHUD(currentScore) {
 // ── Screen Routing ────────────────────────────────────────────────────────────
 export function hideAll() {
   nickScreen.style.display = lobbyScreen.style.display =
-  shopScreen.style.display = statsScreen.style.display = canvas.style.display =
+  shopScreen.style.display = statsScreen.style.display = bountiesScreen.style.display = canvas.style.display =
   hudEl.style.display = 'none';
 }
 
@@ -65,6 +66,11 @@ export function showStats() {
   document.getElementById('statDeaths').textContent = PlayerState.stats.deaths;
   document.getElementById('statJumps').textContent = PlayerState.stats.jumps;
   document.getElementById('statSpikes').textContent = PlayerState.stats.spikesHits;
+}
+
+export function showBounties() {
+  hideAll();
+  bountiesScreen.style.display = 'flex';
 }
 
 // ── Nick Screen Logic ─────────────────────────────────────────────────────────

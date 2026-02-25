@@ -1,6 +1,6 @@
 // js/firebase.js
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, getDoc, setDoc, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, doc, getDoc, setDoc, getDocs, query, orderBy, limit, addDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { PlayerState } from './state.js';
 
 const firebaseConfig = {
@@ -80,4 +80,31 @@ export async function getTopScores() {
     const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(10)));
     return snap.docs.map(d => d.data());
   } catch(e) { console.warn('Błąd getTopScores:', e); return []; }
+}
+
+export async function fetchActiveBounties() {
+  try {
+    const snap = await getDocs(query(collection(db, 'bounties'), orderBy('createdAt', 'desc')));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.warn('Błąd fetchActiveBounties:', e); return []; }
+}
+
+export async function createBountyInDb(victim, targetScore, reward) {
+  try {
+    await addDoc(collection(db, 'bounties'), {
+      creator: PlayerState.nick,
+      victim: victim,
+      targetScore: Number(targetScore),
+      reward: Number(reward),
+      createdAt: new Date()
+    });
+    return true;
+  } catch (e) { console.warn('Błąd createBounty:', e); return false; }
+}
+
+export async function removeBountyFromDb(bountyId) {
+  try {
+    await deleteDoc(doc(db, 'bounties', bountyId));
+    return true;
+  } catch (e) { console.warn('Błąd removeBounty:', e); return false; }
 }

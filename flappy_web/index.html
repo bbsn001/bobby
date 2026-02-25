@@ -67,6 +67,7 @@
     <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
     <button id="lobbySpikes" class="btn" style="display:none; background:#dc3232; color:#fff; margin-top:10px; border:2px solid #ff5555; box-shadow: 0 0 15px #dc323288;">🔥 TRYB KOLCÓW (HARDCORE)</button>
     <button id="lobbyStats" class="btn btn-dark" style="margin-top:10px;">📊 STATY</button>
+    <button id="lobbyBounties" class="btn" style="margin-top:10px; background:#2a0a4a; color:#d8b4fe; border:1px solid #6b21a8;">🎯 TABLICA HAŃBY (KONTRAKTY)</button>
   </div>
 </div>
 
@@ -95,6 +96,33 @@
   </div>
 </div>
 
+<div id="bountiesScreen" class="screen" style="display:none">
+  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+    <div class="shop-header">
+      <button id="bountiesBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
+      <div class="coins" style="margin:0;color:#d8b4fe;">RYNEK KRWI</div>
+    </div>
+
+    <div style="width:100%; background:#131340; border:2px solid #6b21a8; border-radius:12px; padding:15px; margin-bottom:15px; text-align:center;">
+      <div style="color:#d8b4fe; font-size:1.1rem; font-weight:bold; margin-bottom:10px;">AKTYWNE ZLECENIA NA GŁOWY</div>
+      <div id="bountiesList" style="display:flex; flex-direction:column; gap:10px; max-height:250px; overflow-y:auto; padding-right:5px;">
+        <div style="color:#666; font-size:0.9rem;">Ładowanie frajerów...</div>
+      </div>
+    </div>
+
+    <button id="btnShowBountyForm" class="btn btn-yellow" style="width:100%;">➕ WYCEŃ CZYJĄŚ GŁOWĘ</button>
+
+    <div id="bountyForm" style="display:none; width:100%; background:#0f1432; border:1px solid #333; border-radius:12px; padding:15px; margin-top:10px;">
+      <div style="color:#ffd700; font-weight:bold; margin-bottom:10px; text-align:center;">ZAMROŹ SWÓJ HAJS</div>
+      <input id="bountyVictim" class="big-input" style="width:100%; height:45px; font-size:14px;" type="text" placeholder="Nick ofiary (dokładnie!)" autocomplete="off" />
+      <input id="bountyScore" class="big-input" style="width:100%; height:45px; font-size:14px;" type="number" placeholder="Wymagany wynik do pobicia" />
+      <input id="bountyReward" class="big-input" style="width:100%; height:45px; font-size:14px;" type="number" placeholder="Nagroda (z Twojej kieszeni)" />
+      <div id="bountyError" style="color:#dc3232; font-size:13px; font-weight:bold; margin-bottom:10px; text-align:center; display:none;">Błąd!</div>
+      <button id="btnSubmitBounty" class="btn" style="width:100%; background:#dc3232; color:#fff;">KŁADĘ HAJS NA STÓŁ</button>
+    </div>
+  </div>
+</div>
+
 <div id="hud" style="position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:10;display:none">
   <span id="hudCoins" style="position:absolute;top:10px;left:10px;color:#ffd700;font:bold 15px Arial">🎵0</span>
   <span id="hudScore" style="position:absolute;top:6px;right:10px;color:#fff;font:bold 28px Arial;transition:transform 0.1s ease">0</span>
@@ -108,6 +136,7 @@
   import './js/audio.js';
   import './js/ui.js';
   import './js/engine.js';
+  import './js/bounties.js';
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
