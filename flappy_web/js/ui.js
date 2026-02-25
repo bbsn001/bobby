@@ -4,7 +4,7 @@ import { PlayerState, SessionState } from './state.js';
 import { loadPlayerData, saveProgress } from './firebase.js';
 
 // Zaimportujemy te funkcje z silnika w następnym kroku
-import { SceneManager, FlappyMode, SpikesMode, applyActiveSkin, computeSessionParams, showGame } from './engine.js';
+import { SceneManager, FlappyMode, SpikesMode, SkiJumpMode, applyActiveSkin, computeSessionParams, showGame } from './engine.js';
 import { stopMusic, stopSpikesAudio } from './audio.js';
 
 // ── Referencje DOM ────────────────────────────────────────────────────────────
@@ -14,6 +14,7 @@ const shopScreen  = document.getElementById('shopScreen');
 const statsScreen    = document.getElementById('statsScreen');
 const bountiesScreen = document.getElementById('bountiesScreen');
 const hudEl          = document.getElementById('hud');
+const shopCoinsEl    = document.getElementById('shopCoins');
 const canvas      = document.getElementById('gameCanvas');
 
 // ── HUD Management ────────────────────────────────────────────────────────────
@@ -132,6 +133,20 @@ function updateLobbyUI() {
     spikesBtn.style.borderColor = '#333'; spikesBtn.style.boxShadow = 'none';
     spikesBtn.textContent = `🔒 TRYB KOLCÓW (${unlockedChars}/5 postaci)`; spikesBtn.disabled = true;
   }
+
+  const skiBtn = document.getElementById('lobbySki');
+  const hasSki = PlayerState.unlockedSkins.includes('skijump');
+
+  skiBtn.style.display = 'flex';
+  if (hasSki) {
+    skiBtn.style.background = '#e0f2fe'; skiBtn.style.color = '#1e3a8a';
+    skiBtn.style.borderColor = '#7dd3fc'; skiBtn.style.boxShadow = '0 0 15px #7dd3fc88';
+    skiBtn.textContent = '🏔️ GRAJ W IGRZYSKA';
+  } else {
+    skiBtn.style.background = '#1e1e4a'; skiBtn.style.color = '#666';
+    skiBtn.style.borderColor = '#333'; skiBtn.style.boxShadow = 'none';
+    skiBtn.textContent = `🔒 KUP IGRZYSKA (\uD83C\uDFB5 ${GAME_CONFIG.SKI_MODE_PRICE})`;
+  }
 }
 
 let charPickerInitialized = false;
@@ -241,6 +256,34 @@ document.getElementById('lobbyShop').addEventListener('click', () => showShop())
 document.getElementById('lobbyShop').addEventListener('touchend', e => { e.preventDefault(); showShop(); });
 document.getElementById('lobbySpikes').addEventListener('click', onLobbySpikes);
 document.getElementById('lobbySpikes').addEventListener('touchend', e => { e.preventDefault(); onLobbySpikes(); });
+
+async function onLobbySki() {
+  if (lobbyPlayGuard) return;
+  const hasSki = PlayerState.unlockedSkins.includes('skijump');
+
+  if (!hasSki) {
+    if (PlayerState.coins < GAME_CONFIG.SKI_MODE_PRICE) {
+      document.getElementById('lobbySki').style.background = '#dc3232';
+      setTimeout(() => updateLobbyUI(), 300);
+      return;
+    }
+    PlayerState.coins -= GAME_CONFIG.SKI_MODE_PRICE;
+    PlayerState.unlockedSkins.push('skijump');
+    await saveProgress(true);
+    updateLobbyUI();
+    return;
+  }
+
+  lobbyPlayGuard = true;
+  computeSessionParams();
+  await applyActiveSkin(PlayerState.activeSkin);
+  SceneManager.changeScene(SkiJumpMode);
+  showGame();
+  setTimeout(() => { lobbyPlayGuard = false; }, 500);
+}
+
+document.getElementById('lobbySki').addEventListener('click', onLobbySki);
+document.getElementById('lobbySki').addEventListener('touchend', e => { e.preventDefault(); onLobbySki(); });
 document.getElementById('lobbyStats').addEventListener('click', showStats);
 document.getElementById('lobbyStats').addEventListener('touchend', e => { e.preventDefault(); showStats(); });
 document.getElementById('statsBack').addEventListener('click', showLobby);
@@ -252,7 +295,7 @@ const shopUI = {};
 let shopActionGuard = false;
 
 function renderShop() {
-  document.getElementById('shopCoins').textContent = '🎵 ' + PlayerState.coins;
+  shopCoinsEl.textContent = '🎵 ' + PlayerState.coins;
   const grid = document.getElementById('shopGrid');
   if (!grid) return;
 

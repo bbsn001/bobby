@@ -87,7 +87,12 @@ export function playSpecialSound(sc) {
     loadAudioBuffer('tom',      'assets/sounds/tom.mp3'),
     loadAudioBuffer('krystian', 'assets/sounds/krystian.mp3'),
     loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3'),
-    loadAudioBuffer('cwel',     'assets/sounds/cwel.mp3')
+    loadAudioBuffer('cwel',     'assets/sounds/cwel.mp3'),
+
+    // IGRZYSKA - PAKIET
+    loadAudioBuffer('leci',      'assets/sounds/leci_kurwa.mp3'),
+    loadAudioBuffer('wyladowal', 'assets/sounds/wyladowal.mp3'),
+    loadAudioBuffer('brawo',     'assets/sounds/brawo.mp3')
   ]);
   console.log('Audio buffers loaded.');
 })();

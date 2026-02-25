@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v7';
+const CACHE_NAME = 'bobby-bird-v8';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -64,7 +64,12 @@ const ASSETS_TO_CACHE = [
   './assets/sounds/cwel.mp3',
 
   './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png'
+  './assets/icons/icon-512.png',
+
+  './assets/sounds/leci_kurwa.mp3',
+  './assets/sounds/wyladowal.mp3',
+  './assets/sounds/brawo.mp3',
+  './assets/characters/skier_body.png'
 ];
 
 self.addEventListener('install', (event) => {

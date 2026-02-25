@@ -47,6 +47,7 @@ export function computeSessionParams() {
 // ── Ładowanie Zasobów (Grafika) ───────────────────────────────────────────────
 const spriteCache = {}; const collectCache = {};
 let playerImg = null, collectImg = null, collectH = COL_W;
+const skierBodyImg = new Image(); skierBodyImg.src = 'assets/characters/skier_body.png';
 
 function loadImage(src) {
   return new Promise(res => {
@@ -332,6 +333,199 @@ export const SpikesMode = {
   }
 };
 
+// ── Tryb Igrzysk Zimowych (K-120) ─────────────────────────────────────────────
+function getHillY(x) {
+  if (x < 0) return 100;
+  if (x < 250) return 100 + x * 1.2;               // Najazd (inrun)
+  if (x < 300) return 400 - (x - 250) * 0.1;       // Próg (lip) - lekkie wybicie w górę
+  if (x < 1500) return 450 + (x - 300) * 0.85;     // Zeskok (landing hill)
+  if (x < 2000) return 1470 + (x - 1500) * 0.2;    // Wypłaszczenie
+  return 1570;                                      // Płaski odjazd
+}
+
+export const SkiJumpMode = {
+  state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 }, isPressing: false, hasCrashed: false,
+  bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
+
+  init() { this.resetState(); updateHUD(this.distance); },
+  resetState() {
+    this.bird.x = 0; this.bird.y = 80; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
+    this.distance = 0; this.hasCrashed = false; this.isPressing = false;
+    this.state = 'waiting';
+  },
+  startGame() {
+    this.state = 'inrun';
+    this.bird.vx = 2; // Początkowe pchnięcie z belki
+  },
+
+  update(dt) {
+    if (this.state === 'waiting' || this.state === 'gameover') return;
+    const f = dt / 16.667;
+
+    if (this.state === 'inrun') {
+      this.bird.vx += 0.12 * f; // Przyspieszenie grawitacyjne na rozbiegu
+      this.bird.x += this.bird.vx * f;
+      this.bird.y = getHillY(this.bird.x) - 15;
+      this.bird.angle = 50; // Kąt na najeździe
+
+      // Automatyczny spadek z progu, jeśli gracz zaspał z wybiciem
+      if (this.bird.x > 300) {
+        this.state = 'flight'; this.bird.vy = 2; // Lecimy jak kłoda
+        playSound('leci', 1.0);
+      }
+    }
+    else if (this.state === 'flight') {
+      // Aerodynamika lotu (System 2)
+      this.bird.vx -= 0.005 * f; // Opór powietrza
+
+      // Sterowanie kątem lotu - klucz do odległości
+      if (this.isPressing) this.bird.angle -= 2.5 * f; // Wychylenie do przodu
+      else this.bird.angle += 1.5 * f; // Grawitacja ciągnie narty w dół
+
+      // Blokada nienaturalnych wygięć
+      if (this.bird.angle < -20) this.bird.angle = -20;
+      if (this.bird.angle > 80) this.bird.angle = 80;
+
+      // Fizyka nośności (Lift) - idealny kąt to około 0-10 stopni
+      let lift = 0;
+      if (this.bird.angle > -10 && this.bird.angle < 30) lift = 0.35;
+
+      this.bird.vy += (GRAVITY - lift) * f;
+      this.bird.x += this.bird.vx * f;
+      this.bird.y += this.bird.vy * f;
+
+      // Kolizja z zeskokiem
+      const terrainY = getHillY(this.bird.x);
+      if (this.bird.y >= terrainY - 15) {
+        this.bird.y = terrainY - 15;
+        this.land();
+      }
+    }
+    else if (this.state === 'landed') {
+      this.bird.vx -= 0.1 * f; // Hamowanie na zeskoku
+      if (this.bird.vx < 0) this.bird.vx = 0;
+      this.bird.x += this.bird.vx * f;
+      this.bird.y = getHillY(this.bird.x) - 15;
+
+      if (this.bird.vx <= 0 && performance.now() - this.gameOverAt > 1500) {
+        this.state = 'gameover';
+        this.checkRecord();
+      }
+    }
+
+    // Śledzenie wirtualnej kamery z wyprzedzeniem
+    this.camera.x = this.bird.x - GW * 0.3;
+    this.camera.y = this.bird.y - GH * 0.5;
+  },
+
+  land() {
+    this.state = 'landed';
+    this.gameOverAt = performance.now();
+    this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
+    if (this.distance < 0) this.distance = 0;
+
+    // Ocena lądowania (kąt postaci vs kąt stoku)
+    if (this.bird.angle < 10 || this.bird.angle > 70) {
+      this.hasCrashed = true;
+      this.bird.angle = 90; // Leży twarzą w śniegu
+    } else {
+      this.bird.angle = 40; // Telemark
+    }
+
+    playSound('wyladowal', 1.0);
+  },
+
+  checkRecord() {
+    if (!this.hasCrashed && this.distance > PlayerState.skiBestScore) {
+      PlayerState.skiBestScore = this.distance;
+      saveProgress(true);
+      playSound('brawo', 1.0);
+    } else if (this.hasCrashed) {
+      PlayerState.stats.deaths++;
+      saveProgress(true);
+    }
+  },
+
+  draw() {
+    ctx.fillStyle = '#b4c8ff'; ctx.fillRect(0, 0, GW, GH);
+
+    ctx.save();
+    ctx.translate(-this.camera.x, -this.camera.y);
+
+    // Rysowanie stoku skoczni
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-100, 1000);
+    for (let x = -100; x < this.camera.x + GW + 200; x += 50) {
+      ctx.lineTo(x, getHillY(x));
+    }
+    ctx.lineTo(this.camera.x + GW + 200, 2500);
+    ctx.lineTo(-100, 2500);
+    ctx.fill();
+    ctx.stroke();
+
+    // Punkt K (Czerwona Linia)
+    ctx.strokeStyle = '#dc3232'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(1300, getHillY(1300)); ctx.lineTo(1300, getHillY(1300)+50); ctx.stroke();
+
+    // Rysowanie Narciarza
+    ctx.save();
+    ctx.translate(this.bird.x, this.bird.y);
+    ctx.rotate(this.bird.angle * Math.PI / 180);
+
+    if (skierBodyImg.complete && skierBodyImg.naturalHeight !== 0) {
+      ctx.drawImage(skierBodyImg, -30, -20, 60, 40);
+    }
+    if (playerImg) {
+      ctx.drawImage(playerImg, -10, -35, 30, 30);
+    }
+    ctx.restore();
+
+    ctx.restore(); // Koniec trybu kamery
+
+    updateHUD(this.state === 'waiting' ? 0 : this.distance);
+
+    if (this.state === 'waiting') {
+      overlay(0.5);
+      txt(ctx, 'IGRZYSKA (K-120)', GW/2, GH/4, 'bold 40px Arial', '#1e3a8a');
+      txt(ctx, 'Tapnij aby ruszyć z belki.', GW/2, GH/2, '18px Arial', '#fff');
+      txt(ctx, 'W LOCIE: Przytrzymaj ekran aby wychylić', GW/2, GH/2 + 30, '14px Arial', '#ffd700');
+      txt(ctx, 'się do przodu. Szukaj nośności!', GW/2, GH/2 + 50, '14px Arial', '#ffd700');
+    }
+    else if (this.state === 'gameover') {
+      overlay(0.7);
+      txt(ctx, this.hasCrashed ? 'UPADEK!' : 'WYLĄDOWAŁ!', GW/2, GH/3, 'bold 44px Arial', this.hasCrashed ? '#dc3232' : '#22b422');
+      txt(ctx, 'Dystans: ' + this.distance + ' m', GW/2, GH/2, 'bold 30px Arial', '#fff');
+      txt(ctx, 'Rekord życiowy: ' + PlayerState.skiBestScore + ' m', GW/2, GH/2 + 35, '16px Arial', '#ffd700');
+
+      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(10, GH - 80, 110, 64, 12); ctx.fill();
+      txt(ctx, '🏠 LOBBY', 10 + 55, GH - 80 + 39, 'bold 16px Arial', '#fff');
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby skoczyć ponownie', GW/2, GH*2/3 + 40, '15px Arial', '#fff');
+    }
+  },
+
+  onAction(px, py) {
+    if (px !== undefined && (this.state === 'waiting' || this.state === 'gameover')) {
+      if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) {
+        showLobby(); return;
+      }
+    }
+
+    if (this.state === 'waiting') this.startGame();
+    else if (this.state === 'inrun') {
+      if (this.bird.x > 220 && this.bird.x < 300) {
+        this.bird.vy = -4.5; // Potężne wybicie pionowe
+        this.state = 'flight';
+        playSound('leci', 1.0);
+        PlayerState.stats.jumps++;
+      }
+    }
+    else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
+  }
+};
+
 // ── Pętla OODA (Render Loop) & Eventy ────────────────────────────────────────
 let lastTime = performance.now(), loopRunning = false;
 
@@ -342,11 +536,23 @@ function loop(now) {
 }
 function startGameLoop() { if (loopRunning) return; loopRunning = true; lastTime = performance.now(); requestAnimationFrame(loop); }
 
-document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); SceneManager.onAction(); } });
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault(); SceneManager.onAction();
+    if (SceneManager.activeScene === SkiJumpMode) SkiJumpMode.isPressing = true;
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space' && SceneManager.activeScene === SkiJumpMode) SkiJumpMode.isPressing = false;
+});
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return; e.preventDefault();
   const cx = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - canvasRect.left; const cy = (e.clientY ?? e.touches?.[0]?.clientY ?? 0) - canvasRect.top;
   SceneManager.onAction(cx / canvasRect.width * GW, cy / canvasRect.height * GH);
+  if (SceneManager.activeScene === SkiJumpMode) SkiJumpMode.isPressing = true;
+});
+window.addEventListener('pointerup', () => {
+  if (SceneManager.activeScene === SkiJumpMode) SkiJumpMode.isPressing = false;
 });
 
 document.addEventListener('visibilitychange', () => {

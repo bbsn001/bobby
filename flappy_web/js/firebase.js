@@ -55,6 +55,7 @@ export async function saveProgress(immediate = false) {
       await setDoc(ref, {
         nick: PlayerState.nick,
         score: PlayerState.bestScore,
+        skiBestScore: PlayerState.skiBestScore,
         date: new Date(),
         coins: PlayerState.coins,
         unlockedSkins: PlayerState.unlockedSkins,
@@ -107,4 +108,11 @@ export async function removeBountyFromDb(bountyId) {
     await deleteDoc(doc(db, 'bounties', bountyId));
     return true;
   } catch (e) { console.warn('Błąd removeBounty:', e); return false; }
+}
+
+export async function getSkiTopScores() {
+  try {
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('skiBestScore','desc'), limit(10)));
+    return snap.docs.map(d => d.data()).filter(d => (d.skiBestScore || 0) > 0);
+  } catch(e) { console.warn('Błąd getSkiTopScores:', e); return []; }
 }
