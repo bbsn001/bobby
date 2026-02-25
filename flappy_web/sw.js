@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v9';
+const CACHE_NAME = 'bobby-bird-v10';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -92,6 +92,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
+  // 1. ASSETY (Grafiki i Dźwięki) -> Zostają na "Cache First" (nie marnujemy transferu)
   if (url.pathname.includes('/assets/')) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -105,12 +106,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(fetch(req).catch(() => caches.match(req)));
-    return;
-  }
-
+  // 2. KOD GRY (HTML, JS, JSON) -> "Network First" (Zawsze świeże pliki z serwera!)
   event.respondWith(
-    caches.match(req).then((response) => response || fetch(req))
+    fetch(req).then((res) => {
+      // Pobrano świeży plik, zapisujemy kopię do cache na wypadek braku neta w przyszłości
+      return caches.open(CACHE_NAME).then((cache) => {
+        cache.put(req, res.clone());
+        return res;
+      });
+    }).catch(() => {
+      // Brak internetu -> awaryjne ładowanie ze starego cache
+      return caches.match(req);
+    })
   );
 });
