@@ -105,11 +105,11 @@ function overlapsSpike(br, spY, side) {
   return (br.y <= spY + allY && br.y + br.h >= spY - allY);
 }
 
-let _ctxFont = '', _ctxFill = '', _ctxAlign = '';
+// Bezpieczna wersja funkcji renderującej bez wycieków stanu
 function txt(context, str, x, y, font, color, align = 'center') {
-  if (_ctxFont !== font) { context.font = font; _ctxFont = font; }
-  if (_ctxFill !== color) { context.fillStyle = color; _ctxFill = color; }
-  if (_ctxAlign !== align) { context.textAlign = align; _ctxAlign = align; }
+  context.font = font;
+  context.fillStyle = color;
+  context.textAlign = align;
   context.fillText(str, x, y);
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
