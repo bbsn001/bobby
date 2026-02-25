@@ -1,7 +1,7 @@
 // js/engine.js
 import { GAME_CONFIG, CHARACTERS } from './config.js';
 import { PlayerState, SessionState } from './state.js';
-import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playKaching, playSpecialSound, audioCtx } from './audio.js';
+import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playSound, playSpecialSound, audioCtx } from './audio.js';
 import { updateHUD, hideAll, showLobby, showShop, setShopFromWaiting } from './ui.js';
 import { saveProgress, getTopScores } from './firebase.js';
 
@@ -194,7 +194,14 @@ export const FlappyMode = {
 
       if (!p.collected) {
         _cr.x = p.x + PIPE_WIDTH/2 - COL_W/2; _cr.y = (p.topH + p.botY)/2 - collectH/2; _cr.w = COL_W; _cr.h = collectH;
-        if (overlaps(br, _cr)) { p.collected = true; const pts = SessionState.S_DOUBLE ? 2 : 1; this.score += pts; PlayerState.coins += pts; playKaching(); playSpecialSound(this.score); }
+        if (overlaps(br, _cr)) {
+          p.collected = true;
+          const pts = SessionState.S_DOUBLE ? 2 : 1;
+          this.score += pts; PlayerState.coins += pts;
+          const sfx = CHARACTERS[PlayerState.activeSkin].sfx || 'kaching';
+          playSound(sfx, 0.5);
+          playSpecialSound(this.score);
+        }
       }
       if (!inv) {
         _pr.x = p.x; _pr.w = PIPE_WIDTH; _pr.y = 0; _pr.h = p.topH - 28; if (overlaps(br, _pr)) return this.die();
@@ -288,7 +295,11 @@ export const SpikesMode = {
     if (this.bird.y > GH || this.bird.y < -BIRD_SIZE) this.die();
   },
   onWallHit(nextWall) {
-    PlayerState.stats.spikesHits++; const pts = SessionState.S_DOUBLE ? 2 : 1; this.score += pts; PlayerState.coins += pts;
+    PlayerState.stats.spikesHits++;
+    const pts = SessionState.S_DOUBLE ? 2 : 1;
+    this.score += pts; PlayerState.coins += pts;
+    const sfx = CHARACTERS[PlayerState.activeSkin].sfx || 'kaching';
+    playSound(sfx, 0.5);
     if (this.score % 5 === 0 && this.maxSpikes < 10) this.maxSpikes++;
     if (Math.abs(this.bird.vx) < 8.5) this.bird.vx += (this.bird.vx > 0 ? 0.15 : -0.15);
     this.generateSpikes(nextWall); if (nextWall === 'right') this.spikesLeft.length = 0; else this.spikesRight.length = 0;
