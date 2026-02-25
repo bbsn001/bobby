@@ -914,7 +914,7 @@ const FlappyMode = {
   // Hermetyzacja ptaka tylko dla tego trybu
   bird: {
     x: 80, y: 300, vy: 0,
-    js_r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
+    _r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
 
     jump()     { this.vy = JUMP_FORCE; },
     update(dt) {
