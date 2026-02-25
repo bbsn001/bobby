@@ -914,7 +914,8 @@ const FlappyMode = {
   // Hermetyzacja ptaka tylko dla tego trybu
   bird: {
     x: 80, y: 300, vy: 0,
-    _r: { x: 0, y: 0, w: BIRD_SIZE - 4, h: BIRD_SIZE - 4 },
+    js_r: { x: 0, y: 0, w: BIRD_SIZE - 16, h: BIRD_SIZE - 16 },
+
     jump()     { this.vy = JUMP_FORCE; },
     update(dt) {
       const f = dt / 16.667;
@@ -922,7 +923,8 @@ const FlappyMode = {
       this.vy += GRAVITY * f;
       this.y  += deltaY;
     },
-    rect() { this._r.x = this.x + 2; this._r.y = this.y + 2; return this._r; }
+
+    rect() { this._r.x = this.x + 8; this._r.y = this.y + 8; return this._r; }
   },
 
   // Inicjalizacja sesji (Zastępuje initNewSession i resetGame)
@@ -1044,9 +1046,23 @@ const FlappyMode = {
       }
 
       if (!isInvincible) {
-        _pr.x = p.x; _pr.w = PIPE_WIDTH; _pr.y = 0; _pr.h = p.topH;
+        const CAP_H = 28;
+        const CAP_EX = 10;
+
+        // Górna rura — ciało
+        _pr.x = p.x; _pr.w = PIPE_WIDTH; _pr.y = 0; _pr.h = p.topH - CAP_H;
         if (overlaps(br, _pr)) { this.die(); return; }
-        _pr.y = p.botY; _pr.h = GH - p.botY;
+
+        // Górna rura — kołnierz
+        _pr.x = p.x - CAP_EX; _pr.w = PIPE_WIDTH + CAP_EX * 2; _pr.y = p.topH - CAP_H; _pr.h = CAP_H;
+        if (overlaps(br, _pr)) { this.die(); return; }
+
+        // Dolna rura — kołnierz
+        _pr.x = p.x - CAP_EX; _pr.w = PIPE_WIDTH + CAP_EX * 2; _pr.y = p.botY; _pr.h = CAP_H;
+        if (overlaps(br, _pr)) { this.die(); return; }
+
+        // Dolna rura — ciało
+        _pr.x = p.x; _pr.w = PIPE_WIDTH; _pr.y = p.botY + CAP_H; _pr.h = GH - (p.botY + CAP_H);
         if (overlaps(br, _pr)) { this.die(); return; }
       }
     }
