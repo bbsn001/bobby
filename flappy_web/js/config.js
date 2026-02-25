@@ -20,7 +20,7 @@ export const CHARACTERS = {
   deadman:  { name:'Deadman',   img:'deadman.png',  price:45,   col:'grammy.png',     bonuses:['speed-5'], desc:'rury −5%', sfx: 'deadman' },
   krystian: { name:'Krystian',  img:'krystian.png', price:90,   col:'diormind.png',   bonuses:['extralife'], desc:'+1 życie', sfx: 'krystian' },
   johnny:   { name:'Johnny',    img:'johnny.png',   price:150,  col:'joint.png',      bonuses:['gap+10','speed-5'], desc:'przelot +10px, rury −5%', sfx: 'johnny' },
-  kolin:    { name:'Kolin',     img:'kolin.png',    price:250,  col:'strzykawka.png', bonuses:['gap+20'], desc:'przelot +20px', sfx: 'mumia' },
+  kolin:    { name:'Kolin',     img:'kolin.png',    price:250,  col:'strzykawka.png', bonuses:['gap+20'], desc:'przelot +20px', sfx: 'kolin' },
   kutasa:   { name:'Kutasa',    img:'kutasa.png',   price:400,  col:'dziecko.png',    bonuses:['speed-10','extralife'], desc:'rury −10%, +1 życie', sfx: 'kutasa' },
   reczu:    { name:'Reczu',     img:'reczu.png',    price:550,  col:'kutas.png',      bonuses:['gap+20','speed-10'], desc:'przelot +20px, rury −10%', sfx: 'reczu' },
   szpachl:  { name:'Szpachl',   img:'szpachl.png',  price:750,  col:'scat.png',       bonuses:['double'], desc:'×2 punkty i monety', sfx: 'szpachl' },

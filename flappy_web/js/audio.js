@@ -86,7 +86,8 @@ export function playSpecialSound(sc) {
     loadAudioBuffer('szpachl',  'assets/sounds/szpachl.mp3'),
     loadAudioBuffer('tom',      'assets/sounds/tom.mp3'),
     loadAudioBuffer('krystian', 'assets/sounds/krystian.mp3'),
-    loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3'),
+    loadAudioBuffer('mumia',    'assets/sounds/mumia.mp3'), // Mumia zostaje dla wyników "co 10 pkt"
+    loadAudioBuffer('kolin',    'assets/sounds/kolin.mp3'), // <--- NOWY DŹWIĘK KOLINA
     loadAudioBuffer('cwel',     'assets/sounds/cwel.mp3'),
 
     // IGRZYSKA - PAKIET

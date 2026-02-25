@@ -654,7 +654,11 @@ export const SkiJumpMode = {
 
   onAction(px, py) {
     if (px !== undefined && (this.state === 'waiting' || this.state === 'gameover')) {
-      if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) { showLobby(); return; }
+      if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) {
+        stopWind(); // <--- ZATRZYMANIE WIATRU PRZED WYJŚCIEM
+        showLobby();
+        return;
+      }
     }
 
     if (this.state === 'waiting') this.startGame();
