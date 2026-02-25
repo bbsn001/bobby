@@ -96,3 +96,27 @@ export function playSpecialSound(sc) {
   ]);
   console.log('Audio buffers loaded.');
 })();
+
+// ── Proceduralny Syntezator Wiatru ───────────────────────────────────────────
+let windOsc = null, windGain = null;
+export function startWind() {
+  if (windOsc || audioCtx.state !== 'running') return;
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  windOsc = audioCtx.createBufferSource(); windOsc.buffer = buffer; windOsc.loop = true;
+  const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 400;
+  windGain = audioCtx.createGain(); windGain.gain.value = 0;
+  windOsc.connect(filter); filter.connect(windGain); windGain.connect(audioCtx.destination);
+  windOsc.start();
+}
+export function updateWind(speedKmh) {
+  if (!windGain) return;
+  const targetVol = Math.min(0.6, speedKmh / 280);
+  windGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.1);
+}
+export function stopWind() {
+  if (windGain) windGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+  if (windOsc) { setTimeout(() => { if (windOsc) { windOsc.stop(); windOsc.disconnect(); windOsc = null; } }, 200); }
+}

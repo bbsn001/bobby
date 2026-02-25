@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v10';
+const CACHE_NAME = 'bobby-bird-v11';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -84,9 +84,16 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+
+  // TARCZA NA iOS SAFARI: Jeśli przeglądarka prosi o kawałek pliku audio/video (Range),
+  // całkowicie omijamy Service Workera i pozwalamy serwerowi na bezpośrednią obsługę.
+  if (req.headers.has('range')) {
+    return;
+  }
+
   const url = new URL(req.url);
 
-  // ASSETY ŁADUJEMY Z PAMIĘCI (Żeby oszczędzać transfer)
+  // ASSETY ŁADUJEMY Z PAMIĘCI
   if (url.pathname.includes('/assets/')) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -100,7 +107,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // KOD GRY (HTML, JS) ŁADUJEMY ZAWSZE Z SIECI (Network First)!
+  // KOD GRY Z SIECI
   event.respondWith(
     fetch(req).then((res) => {
       return caches.open(CACHE_NAME).then((cache) => {

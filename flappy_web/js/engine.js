@@ -1,7 +1,7 @@
 // js/engine.js
 import { GAME_CONFIG, CHARACTERS } from './config.js';
 import { PlayerState, SessionState } from './state.js';
-import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playSound, playSpecialSound, audioCtx } from './audio.js';
+import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playSound, playSpecialSound, audioCtx, startWind, updateWind, stopWind } from './audio.js';
 import { updateHUD, hideAll, showLobby, showShop, setShopFromWaiting } from './ui.js';
 import { saveProgress, getTopScores } from './firebase.js';
 
@@ -360,6 +360,7 @@ export const SkiJumpMode = {
 
   init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
+    stopWind();
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.feedbackText = ''; this.feedbackTimer = 0; this.tracks = [];
@@ -377,7 +378,7 @@ export const SkiJumpMode = {
     });
     this.state = 'waiting';
   },
-  startGame() { this.state = 'inrun'; this.bird.vx = 1.2; },
+  startGame() { this.state = 'inrun'; this.bird.vx = 1.2; startWind(); },
 
   showFeedback(text, color) {
     this.feedbackText = text; this.feedbackColor = color;
@@ -388,6 +389,7 @@ export const SkiJumpMode = {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
     this.speedKmh = Math.abs(this.bird.vx * 15 + this.bird.vy * 5);
+    updateWind(this.speedKmh);
 
     if ((this.state === 'inrun' || this.state === 'landed') && !this.hasCrashed && this.tracks.length < 1000) {
       this.tracks.push({ x: this.bird.x, y: this.bird.y });
@@ -694,9 +696,18 @@ document.addEventListener('visibilitychange', () => {
 
 let audioUnlocked = false;
 function unlockAudio() {
-  if (audioUnlocked) return; if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioUnlocked) return;
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(() => {
+      if (audioCtx.state === 'running') audioUnlocked = true;
+    });
+  } else if (audioCtx.state === 'running') {
+    audioUnlocked = true;
+  }
   const silence = new Audio('data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
-  silence.play().catch(() => {}); audioUnlocked = true;
+  silence.play().catch(() => {});
 }
-document.addEventListener('touchstart', unlockAudio, { once: true }); document.addEventListener('mousedown', unlockAudio, { once: true });
+['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, unlockAudio);
+});
 window.addEventListener('contextmenu', e => { if (isGameCanvasVisible) e.preventDefault(); });

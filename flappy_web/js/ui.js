@@ -102,7 +102,6 @@ async function onNickConfirm() {
 }
 
 nickConfirm.addEventListener('click', onNickConfirm);
-nickConfirm.addEventListener('touchend', e => { e.preventDefault(); onNickConfirm(); });
 nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') onNickConfirm(); e.stopPropagation(); });
 
 // ── Lobby Logic ───────────────────────────────────────────────────────────────
@@ -245,11 +244,8 @@ async function onLobbySpikes() {
 }
 
 document.getElementById('lobbyPlay').addEventListener('click', onLobbyPlay);
-document.getElementById('lobbyPlay').addEventListener('touchend', e => { e.preventDefault(); onLobbyPlay(); });
 document.getElementById('lobbyShop').addEventListener('click', () => showShop());
-document.getElementById('lobbyShop').addEventListener('touchend', e => { e.preventDefault(); showShop(); });
 document.getElementById('lobbySpikes').addEventListener('click', onLobbySpikes);
-document.getElementById('lobbySpikes').addEventListener('touchend', e => { e.preventDefault(); onLobbySpikes(); });
 
 async function onLobbySki() {
   if (lobbyPlayGuard) return;
@@ -265,11 +261,8 @@ async function onLobbySki() {
 }
 
 document.getElementById('lobbySki').addEventListener('click', onLobbySki);
-document.getElementById('lobbySki').addEventListener('touchend', e => { e.preventDefault(); onLobbySki(); });
 document.getElementById('lobbyStats').addEventListener('click', showStats);
-document.getElementById('lobbyStats').addEventListener('touchend', e => { e.preventDefault(); showStats(); });
 document.getElementById('statsBack').addEventListener('click', showLobby);
-document.getElementById('statsBack').addEventListener('touchend', e => { e.preventDefault(); showLobby(); });
 
 // ── Shop Logic ────────────────────────────────────────────────────────────────
 let shopInitialized = false;
@@ -383,9 +376,4 @@ document.getElementById('shopBack').addEventListener('click', () => {
     computeSessionParams(); SceneManager.changeScene(FlappyMode);
     showGame();
   } else { showLobby(); }
-});
-document.getElementById('shopBack').addEventListener('touchend', e => {
-  e.preventDefault();
-  if (shopFromWaiting) { shopFromWaiting = false; computeSessionParams(); SceneManager.changeScene(FlappyMode); showGame(); }
-  else showLobby();
 });
