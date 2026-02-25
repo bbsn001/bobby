@@ -13,7 +13,6 @@ const ASSETS_TO_CACHE = [
   './js/engine.js',
   './js/bounties.js',
 
-  // Grafiki postaci
   './assets/characters/bobby.png',
   './assets/characters/bialek.png',
   './assets/characters/deadman.png',
@@ -26,8 +25,8 @@ const ASSETS_TO_CACHE = [
   './assets/characters/szpachl.png',
   './assets/characters/tom.png',
   './assets/characters/cwel.png',
+  './assets/characters/skier_body.png',
 
-  // Grafiki znajdziek
   './assets/collectibles/soundcloud.png',
   './assets/collectibles/nina.png',
   './assets/collectibles/grammy.png',
@@ -41,15 +40,12 @@ const ASSETS_TO_CACHE = [
   './assets/collectibles/wozek.png',
   './assets/collectibles/cwel_col.png',
 
-  // Dźwięki Tła
   './assets/sounds/music.mp3',
   './assets/sounds/music2.mp3',
   './assets/sounds/jeopardy.mp3',
   './assets/sounds/voice.mp3',
   './assets/sounds/kaching.wav',
   './assets/sounds/7.mp3',
-
-  // UNIKALNE DŹWIĘKI POSTACI (NOWE)
   './assets/sounds/bobby.mp3',
   './assets/sounds/bialek.mp3',
   './assets/sounds/deadman.mp3',
@@ -62,14 +58,12 @@ const ASSETS_TO_CACHE = [
   './assets/sounds/krystian.mp3',
   './assets/sounds/mumia.mp3',
   './assets/sounds/cwel.mp3',
-
-  './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png',
-
   './assets/sounds/leci_kurwa.mp3',
   './assets/sounds/wyladowal.mp3',
   './assets/sounds/brawo.mp3',
-  './assets/characters/skier_body.png'
+
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -92,7 +86,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // 1. ASSETY (Grafiki i Dźwięki) -> Zostają na "Cache First" (nie marnujemy transferu)
+  // ASSETY ŁADUJEMY Z PAMIĘCI (Żeby oszczędzać transfer)
   if (url.pathname.includes('/assets/')) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -106,16 +100,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. KOD GRY (HTML, JS, JSON) -> "Network First" (Zawsze świeże pliki z serwera!)
+  // KOD GRY (HTML, JS) ŁADUJEMY ZAWSZE Z SIECI (Network First)!
   event.respondWith(
     fetch(req).then((res) => {
-      // Pobrano świeży plik, zapisujemy kopię do cache na wypadek braku neta w przyszłości
       return caches.open(CACHE_NAME).then((cache) => {
         cache.put(req, res.clone());
         return res;
       });
     }).catch(() => {
-      // Brak internetu -> awaryjne ładowanie ze starego cache
       return caches.match(req);
     })
   );

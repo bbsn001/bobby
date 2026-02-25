@@ -370,7 +370,7 @@ export const SkiJumpMode = {
     this.feedbackText = text;
     this.feedbackColor = color;
     this.feedbackTimer = performance.now();
-    this.feedbackY = this.bird.y - 40;
+    this.feedbackY = this.bird.y - 70; // Wyżej, żeby nie zasłaniać twarzy
   },
 
   update(dt) {
@@ -407,7 +407,7 @@ export const SkiJumpMode = {
       if (this.bird.angle > 80) this.bird.angle = 80;
 
       let lift = 0;
-      if (this.bird.angle > -5 && this.bird.angle < 25) lift = 0.40; // Mocniejsze noszenie
+      if (this.bird.angle > -10 && this.bird.angle < 35) lift = 0.43;
 
       this.bird.vy += (GRAVITY - lift) * f;
       this.bird.x += this.bird.vx * f;
@@ -592,18 +592,16 @@ export const SkiJumpMode = {
       this.startGame();
     }
     else if (this.state === 'inrun') {
-      // Mechanika IDEALNEGO WYBICIA - Ulepszona
       if (this.bird.x > 150 && this.bird.x < 305) {
         const distToOptimal = Math.abs(this.bird.x - 290);
-        let power = 1.0 - (distToOptimal / 140);
+        let power = 1.0 - (distToOptimal / 120); // Zmniejszony dzielnik = łatwiej o dobre odbicie
         if (power < 0.2) power = 0.2;
 
-        this.bird.vy = -2.5 - (power * 4.8);
+        this.bird.vy = -2.5 - (power * 5.2); // Mocniejsze wybicie bazowe do góry
         this.state = 'flight';
         PlayerState.stats.jumps++;
         playSound('leci', 1.0);
 
-        // Feedback wizualny skoku
         if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
         else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
         else this.showFeedback('SŁABO', '#dc3232');
@@ -611,8 +609,8 @@ export const SkiJumpMode = {
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
-      // Lądowanie na ułamek sekundy przed ziemią
-      if (terrainY - this.bird.y < 120) {
+      // Gracz ma teraz aż 180 pikseli zapasu nad ziemią, żeby wcisnąć telemark (wcześniej 120)
+      if (terrainY - this.bird.y < 180) {
         this.telemark = true;
         this.showFeedback('PRZYGOTOWANY', '#93c5fd');
       }
