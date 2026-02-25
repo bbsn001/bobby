@@ -426,14 +426,15 @@ export const SkiJumpMode = {
       const angleDiff = Math.abs(this.bird.angle - 15);
       let lift = 0; let drag = 0.002;
 
-      // BUFF NOŚNOŚCI DLA MAMUTA (dłuższe szybowanie)
-      if (angleDiff < 40) lift = 0.465 * (1 - (angleDiff / 40));
-      else drag += (angleDiff / 100) * 0.03;
+      // ŁATWIEJSZY LOT: Tolerancja kąta rozciągnięta (z 40 na 50) i mniejsza kara za złą pozycję
+      if (angleDiff < 50) lift = 0.465 * (1 - (angleDiff / 50));
+      else drag += (angleDiff / 100) * 0.02;
 
       const terrainY = getHillY(this.bird.x);
 
-      if (terrainY - this.bird.y < 50 && angleDiff < 25) {
-         lift += 0.25; // Mocniejsza poduszka powietrzna
+      // ŁATWIEJSZA PODUSZKA POWIETRZNA: Działa już od 70 pikseli nad ziemią
+      if (terrainY - this.bird.y < 70 && angleDiff < 30) {
+         lift += 0.25;
       }
 
       this.bird.vx -= drag * f; this.bird.vy += (GRAVITY - lift - windLift) * f;
@@ -474,8 +475,8 @@ export const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
-    // Ekstremalnie ciasny telemark z racji prędkości na mamucie
-    if (!this.telemark || this.bird.angle < 10 || this.bird.angle > 65) {
+    // ŁATWIEJSZY TELEMARK: Kąt bezpieczeństwa powiększony (od 0 do 75 stopni wychylenia)
+    if (!this.telemark || this.bird.angle < 0 || this.bird.angle > 75) {
       this.hasCrashed = true;
       this.bird.vy = -5.0;
       this.bird.vx *= 0.85;
@@ -638,21 +639,28 @@ export const SkiJumpMode = {
 
     if (this.state === 'waiting') this.startGame();
     else if (this.state === 'inrun') {
-      if (this.bird.x > 150 && this.bird.x < 305) {
-        const distToOptimal = Math.abs(this.bird.x - 290);
-        let power = 1.0 - (distToOptimal / 120); if (power < 0.2) power = 0.2;
-        // Potężne wybicie dla lotów narciarskich
+      // Można kliknąć znacznie wcześniej
+      if (this.bird.x > 100 && this.bird.x < 305) {
+        const distToOptimal = Math.abs(this.bird.x - 295); // Punkt G to 295
+        // Dzielnik 160 zamiast 120 -> potężna siła nawet przy słabszym timingu
+        let power = 1.0 - (distToOptimal / 160);
+        if (power < 0.3) power = 0.3; // Gwarancja minimalnego odbicia
+
         this.bird.vy = -3.8 - (power * 6.5);
         this.state = 'flight'; PlayerState.stats.jumps++; playSound('leci', 1.0);
-        if (power > 0.85) this.showFeedback('IDEALNIE!', '#22b422');
-        else if (power > 0.5) this.showFeedback('DOBRZE', '#eab308');
+
+        if (power > 0.80) this.showFeedback('IDEALNIE!', '#22b422');
+        else if (power > 0.40) this.showFeedback('DOBRZE', '#eab308');
         else this.showFeedback('SŁABO', '#dc3232');
       }
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
-      // Okno telemarku na mamucie minimalnie zredukowane by wymusić skupienie
-      if (terrainY - this.bird.y < 200) { this.telemark = true; this.showFeedback('PRZYGOTOWANY', '#93c5fd'); }
+      // GIGANTYCZNE OKNO LĄDOWANIA (300 pikseli zamiast 200)
+      if (terrainY - this.bird.y < 300) {
+          this.telemark = true;
+          this.showFeedback('PRZYGOTOWANY', '#93c5fd');
+      }
     }
     else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
   }
