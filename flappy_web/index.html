@@ -69,22 +69,20 @@
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none; outline: none;
     }
-    /* --- CSS PODMIENIONE DLA SAFE AREA --- */
-    :root {
-      --safe-top: env(safe-area-inset-top, 20px);
-      --safe-bottom: env(safe-area-inset-bottom, 20px);
-    }
+    /* CSS - ZERO ZGNIATANIA */
     .screen {
-      position: fixed; inset: 0; background: #0a0a2e; display: flex; flex-direction: column;
-      align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 100;
+      position: fixed; inset: 0; background: #0a0a2e;
+      display: flex; flex-direction: column; align-items: center;
+      overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 100;
+      /* USUNIĘTY PADDING STĄD */
     }
-    /* PANCERNE ZABEZPIECZENIE PRZED NOTCHEM */
     .screen-inner {
       width: 100%; max-width: 500px; padding: 10px 20px;
-      padding-top: calc(var(--safe-top) + 15px) !important;
-      padding-bottom: calc(var(--safe-bottom) + 15px) !important;
+      /* PADDING TYLKO TUTAJ - GWARANCJA SAFE AREA */
+      padding-top: max(env(safe-area-inset-top), 20px) !important;
+      padding-bottom: max(env(safe-area-inset-bottom), 20px) !important;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      min-height: 100%; flex: 1;
+      min-height: 100%; flex: 1; position: relative;
     }
     .screen-title { color: #ffd700; font-size: 2.2em; font-weight: bold; margin-bottom: 6px; text-align: center; }
     .screen-sub { color: #aaa; font-size: .88rem; margin-bottom: 24px; text-align: center; }
@@ -234,13 +232,15 @@
 <div id="lobbyScreen" class="screen" style="display:none">
   <div class="screen-inner">
 
-    <div id="onlinePinBtn" style="position: absolute; top: calc(var(--safe-top) + 15px); right: 20px; background: rgba(15,20,50,0.8); border: 1px solid #1a6aff; border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; z-index: 200; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
-      <div style="width: 10px; height: 10px; background: #22b422; border-radius: 50%; box-shadow: 0 0 8px #22b422; animation: my-turn-pulse 2s infinite;"></div>
-      <div id="onlineCountText" style="color: #fff; font-weight: bold; font-size: 0.85rem;">1 ONLINE</div>
+    <div style="width: 100%; display: flex; justify-content: flex-end; margin-bottom: 8px;">
+      <div id="onlinePinBtn" style="background: rgba(15,20,50,0.8); border: 1px solid #1a6aff; border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
+        <div style="width: 10px; height: 10px; background: #22b422; border-radius: 50%; box-shadow: 0 0 8px #22b422; animation: my-turn-pulse 2s infinite;"></div>
+        <div id="onlineCountText" style="color: #fff; font-weight: bold; font-size: 0.85rem;">1 ONLINE</div>
+      </div>
     </div>
 
-    <div class="player-id-card" style="margin-top: 10px;">
-      <img id="charPreviewImg" src="" class="player-id-avatar" alt="">
+    <div class="player-id-card">
+      <img id="charPreviewImg" src="" class="player-id-avatar" alt="" onerror="this.src='assets/characters/bobby.png'">
       <div class="player-id-info">
         <div id="lobbyNick" class="player-id-nick">BOBBY</div>
         <div id="lobbyCoins" class="player-id-coins">🎵 0</div>
