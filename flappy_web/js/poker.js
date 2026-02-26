@@ -85,7 +85,7 @@ setInterval(() => {
 
 export function connectToCasino() {
   if (socket) return;
-  socket = io('http://46.225.187.11:3000', { transports: ['websocket'] });
+  socket = io('https://bobby-casino.duckdns.org', { transports: ['websocket'] });
 
   socket.on('table_joined', (data) => {
     PlayerState.coins = data.newBalance;
