@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v15';
+const CACHE_NAME = 'bobby-bird-v18';
 
 const ASSETS_TO_CACHE = [
   './',

@@ -69,8 +69,23 @@
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none; outline: none;
     }
-    .screen { position: fixed; inset: 0; background: #0a0a2e; display: flex; flex-direction: column; align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 100; }
-    .screen-inner { width: 100%; max-width: 500px; padding: 32px 20px; display: flex; flex-direction: column; align-items: center; min-height: 100%; justify-content: center; }
+    /* --- CSS PODMIENIONE DLA SAFE AREA --- */
+    :root {
+      --safe-top: env(safe-area-inset-top, 20px);
+      --safe-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    .screen {
+      position: fixed; inset: 0; background: #0a0a2e; display: flex; flex-direction: column;
+      align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 100;
+    }
+    /* PANCERNE ZABEZPIECZENIE PRZED NOTCHEM */
+    .screen-inner {
+      width: 100%; max-width: 500px; padding: 10px 20px;
+      padding-top: calc(var(--safe-top) + 15px) !important;
+      padding-bottom: calc(var(--safe-bottom) + 15px) !important;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      min-height: 100%; flex: 1;
+    }
     .screen-title { color: #ffd700; font-size: 2.2em; font-weight: bold; margin-bottom: 6px; text-align: center; }
     .screen-sub { color: #aaa; font-size: .88rem; margin-bottom: 24px; text-align: center; }
     .big-input { width: 80%; max-width: 280px; height: 58px; font-size: 16px; padding: 0 16px; text-align: center; border: 2px solid #ffd700; border-radius: 10px; background: #0f1432; color: #fff; outline: none; margin-bottom: 14px; }
@@ -217,17 +232,20 @@
 </div>
 
 <div id="lobbyScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="padding-top:30px; justify-content:flex-start;">
+  <div class="screen-inner">
 
-    <div class="player-id-card">
+    <div id="onlinePinBtn" style="position: absolute; top: calc(var(--safe-top) + 15px); right: 20px; background: rgba(15,20,50,0.8); border: 1px solid #1a6aff; border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; z-index: 200; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
+      <div style="width: 10px; height: 10px; background: #22b422; border-radius: 50%; box-shadow: 0 0 8px #22b422; animation: my-turn-pulse 2s infinite;"></div>
+      <div id="onlineCountText" style="color: #fff; font-weight: bold; font-size: 0.85rem;">1 ONLINE</div>
+    </div>
+
+    <div class="player-id-card" style="margin-top: 10px;">
       <img id="charPreviewImg" src="" class="player-id-avatar" alt="">
       <div class="player-id-info">
         <div id="lobbyNick" class="player-id-nick">BOBBY</div>
         <div id="lobbyCoins" class="player-id-coins">🎵 0</div>
       </div>
       <img src="assets/icons/icon-192.png" class="player-id-bird" alt="">
-      <div id="charPreviewName" style="display:none"></div>
-      <div id="charPreviewBonus" style="display:none"></div>
     </div>
 
     <div id="charPicker" style="display:flex;overflow-x:auto;gap:8px;padding:4px 2px;width:100%;max-width:320px;margin-bottom:25px;-webkit-overflow-scrolling:touch;flex-shrink:0;min-height:70px;"></div>
@@ -249,6 +267,7 @@
         <div class="mode-icon">🎰</div>
         <div class="mode-title">KASYNO</div>
         <div class="mode-price">🎵 500</div>
+        <div id="casinoRadar" style="font-size: 0.75rem; color: #ffd700; margin-top: 6px; font-weight: 900; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">Łączenie...</div>
       </div>
     </div>
 
@@ -262,7 +281,7 @@
 </div>
 
 <div id="shopScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+  <div class="screen-inner" style="justify-content:flex-start;">
     <div class="shop-header">
       <button id="shopBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
       <div id="shopCoins" class="coins" style="margin:0">🎵 0</div>
@@ -272,7 +291,7 @@
 </div>
 
 <div id="statsScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px; width:100%">
+  <div class="screen-inner" style="justify-content:flex-start; width:100%">
     <div class="shop-header">
       <button id="statsBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
       <div class="coins" style="margin:0;color:#8be;">STATYSTYKI</div>
@@ -288,7 +307,7 @@
 </div>
 
 <div id="bountiesScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+  <div class="screen-inner" style="justify-content:flex-start;">
     <div class="shop-header">
       <button id="bountiesBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
       <div class="coins" style="margin:0;color:#d8b4fe;">RYNEK KRWI</div>
@@ -337,7 +356,7 @@
   </div>
 </div>
 
-<div id="pokerScreen" class="screen" style="display:none; position:relative; background: #073b07; background-image: radial-gradient(#0a5c0a 1px, transparent 1px); background-size: 20px 20px;">
+<div id="pokerScreen" class="screen" style="display:none; background: #073b07; background-image: radial-gradient(#0a5c0a 1px, transparent 1px); background-size: 20px 20px;">
 
   <div id="showdownOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.85); z-index:200; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center;">
     <div id="showdownWinnerName" style="color:#ffd700; font-size:1.8rem; font-weight:bold; margin-bottom:10px;"></div>
@@ -345,36 +364,36 @@
     <div id="showdownAmount" style="color:#fff; font-size:1.2rem;"></div>
   </div>
 
-  <div class="screen-inner" style="justify-content: flex-start; padding: 10px; padding-top: 30px; width: 100%;">
+  <div class="screen-inner" style="width: 100%;">
 
-    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0;">
       <button id="pokerExit" class="btn btn-dark btn-sm">🚪 WYJDŹ</button>
-      <div id="pokerStatus" style="color: #ffd700; font-weight: bold; font-size: 0.9rem; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 8px;">CZEKANIE NA GRACZY...</div>
+      <div id="pokerStatus" style="color: #ffd700; font-weight: bold; font-size: 0.9rem; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 8px;">CZEKANIE...</div>
     </div>
 
-    <div id="otherPlayers" style="display: flex; justify-content: center; gap: 12px; width: 100%; margin-bottom: 10px; flex-wrap: wrap; min-height: 100px; align-items: flex-end;"></div>
+    <div id="otherPlayers" style="display: flex; justify-content: center; gap: 12px; width: 100%; min-height: 90px; align-items: flex-end; flex-shrink: 0;"></div>
 
-    <div id="pokerTableArea" style="position: relative; width: 100%; max-width: 400px; height: 260px; margin: 5px auto 25px auto; flex-shrink: 0;">
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; width: 100%;">
+      <div id="pokerTableArea" style="position: relative; width: 100%; max-width: 400px; height: 32vh; min-height: 220px; max-height: 300px; margin: auto; flex-shrink: 0;">
 
-      <div style="position: absolute; inset: 0 10px; background: #1a4a1a; border: 10px solid #3d2b1f; border-radius: 120px; box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.5);"></div>
+        <div style="position: absolute; inset: 0 10px; background: #1a4a1a; border: 10px solid #3d2b1f; border-radius: 120px; box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.5);"></div>
 
-      <div id="boardCards" style="position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 4px; height: 50px;"></div>
+        <div id="boardCards" style="position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 4px; height: 50px;"></div>
 
-      <div id="potContainer" style="position: absolute; top: 68%; left: 50%; transform: translate(-50%, -50%); color: #ffd700; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 3px #000; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 10px; border: 1px solid #cca100;">
-        Pula: 0
-      </div>
+        <div id="potContainer" style="position: absolute; top: 68%; left: 50%; transform: translate(-50%, -50%); color: #ffd700; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 3px #000; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 10px; border: 1px solid #cca100;">Pula: 0</div>
 
-      <div id="seat-0" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); text-align: center; width: 100px; display: flex; flex-direction: column; align-items: center;">
-        <div id="myCards" style="display: flex; justify-content: center; margin-bottom: -15px; z-index: 1;"></div>
-        <div style="background: rgba(0,0,0,0.9); border: 2px solid #1a6aff; border-radius: 12px; padding: 6px 20px; box-shadow: 0 6px 15px rgba(0,0,0,0.6); position: relative; z-index: 2; min-width: 110px;">
-          <div id="pokerMyNick" style="color: #fff; font-size: 0.9rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-bottom: 2px;">TY</div>
-          <div id="pokerChips" style="color: #ffd700; font-size: 1.1rem; font-weight: bold;">0</div>
-          <div id="btnShowRebuy" style="position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; background: #1a6aff; border: 2px solid #fff; border-radius: 50%; color: #fff; font-weight: bold; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 8px #000; z-index: 10; transition: transform 0.1s;">+</div>
+        <div id="seat-0" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); text-align: center; width: 100px; display: flex; flex-direction: column; align-items: center;">
+          <div id="myCards" style="display: flex; justify-content: center; margin-bottom: -15px; z-index: 1;"></div>
+          <div style="background: rgba(0,0,0,0.9); border: 2px solid #1a6aff; border-radius: 12px; padding: 6px 20px; box-shadow: 0 6px 15px rgba(0,0,0,0.6); position: relative; z-index: 2; min-width: 110px;">
+            <div id="pokerMyNick" style="color: #fff; font-size: 0.9rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-bottom: 2px;">TY</div>
+            <div id="pokerChips" style="color: #ffd700; font-size: 1.1rem; font-weight: bold;">0</div>
+            <div id="btnShowRebuy" style="position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; background: #1a6aff; border: 2px solid #fff; border-radius: 50%; color: #fff; font-weight: bold; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 8px #000; z-index: 10; transition: transform 0.1s;">+</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div style="width: 100%; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 15px; margin-top: auto;">
+    <div style="width: 100%; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 15px; margin-top: 10px; flex-shrink: 0;">
 
       <div id="raisePanel" style="display: none; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 1px solid #ffd700; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
         <div style="display: flex; justify-content: space-between; color: #fff; font-size: 0.8rem; margin-bottom: 15px; text-align: center;">
@@ -439,7 +458,7 @@
 </script>
 
 <div id="leaderboardScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+  <div class="screen-inner" style="justify-content:flex-start;">
     <div class="shop-header">
       <button id="leaderboardBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
       <div class="coins" style="margin:0;color:#ffd700;">HALL OF FAME</div>
@@ -456,6 +475,17 @@
       <div id="lbTitle" style="color:#aaa; font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; text-align:center; font-weight:bold;">Ładowanie danych...</div>
       <div id="lbContent" style="display:flex; flex-direction:column; max-height: 45vh; overflow-y: auto;"></div>
     </div>
+  </div>
+</div>
+
+<div id="onlineModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 400; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+  <div style="background: #0f1432; border: 2px solid #1a6aff; border-radius: 16px; padding: 20px; width: 85%; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px;">
+      <div style="color: #fff; font-weight: bold; font-size: 1.1rem;">🌍 GRACZE ONLINE</div>
+      <button id="closeOnlineModal" style="background: transparent; border: none; color: #dc3232; font-size: 1.5rem; font-weight: bold; cursor: pointer;">×</button>
+    </div>
+    <div id="onlinePlayersList" style="display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto;">
+      </div>
   </div>
 </div>
 

@@ -6,7 +6,7 @@ import { loadPlayerData, saveProgress, getTopScores, getSkiTopScores, getSpikesT
 // Zaimportujemy te funkcje z silnika w następnym kroku
 import { SceneManager, FlappyMode, SpikesMode, SkiJumpMode, applyActiveSkin, computeSessionParams, showGame } from './engine.js';
 import { stopMusic, stopSpikesAudio } from './audio.js';
-import { connectToCasino, joinPokerTable, leavePokerTable, sendPlayerAction, PokerBetState, requestRebuy, sendReadySignal, joinPokerSeat } from './poker.js';
+import { connectToCasino, joinPokerTable, leavePokerTable, sendPlayerAction, PokerBetState, requestRebuy, sendReadySignal, joinPokerSeat, sendSkinUpdateToServer } from './poker.js';
 
 // ── Referencje DOM ────────────────────────────────────────────────────────────
 const nickScreen  = document.getElementById('nickScreen');
@@ -208,6 +208,7 @@ function renderCharPicker() {
         if (pGuard || PlayerState.activeSkin === key || !PlayerState.unlockedSkins.includes(key)) return;
         pGuard = true;
         PlayerState.activeSkin = key;
+        sendSkinUpdateToServer(key);
         await applyActiveSkin(key);
         updateLobbyUI();
         saveProgress(true).finally(() => { pGuard = false; });
@@ -396,6 +397,7 @@ function handleShopAction(key) {
   }
 
   shopActionGuard = true;
+  sendSkinUpdateToServer(key);
   applyActiveSkin(key).then(() => {
     renderShop();
     updateLobbyUI();
@@ -616,4 +618,18 @@ if (slider) {
   slider.addEventListener('mouseleave', () => { isDown = false; slider.style.cursor = 'auto'; });
   slider.addEventListener('mouseup',    () => { isDown = false; slider.style.cursor = 'auto'; });
   slider.addEventListener('mousemove',  (e) => { if (!isDown) return; e.preventDefault(); const x = e.pageX - slider.offsetLeft; slider.scrollLeft = scrollLeft - (x - startX) * 1.5; });
+}
+
+const onlinePinBtn = document.getElementById('onlinePinBtn');
+const onlineModal = document.getElementById('onlineModal');
+const closeOnlineModal = document.getElementById('closeOnlineModal');
+
+if (onlinePinBtn) {
+  onlinePinBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    onlineModal.style.display = 'flex';
+  });
+}
+if (closeOnlineModal) {
+  closeOnlineModal.addEventListener('pointerdown', () => { onlineModal.style.display = 'none'; });
 }

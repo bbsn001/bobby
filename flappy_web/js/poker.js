@@ -87,6 +87,48 @@ export function connectToCasino() {
   if (socket) return;
   socket = io('https://bobby-casino.duckdns.org', { transports: ['websocket'] });
 
+  // Natychmiast po połączeniu z Krupierem, meldujemy swoją obecność w aplikacji
+  socket.on('connect', () => {
+    socket.emit('hello_server', { nick: PlayerState.nick, activeSkin: PlayerState.activeSkin });
+  });
+
+  // Nasłuchiwanie na Główny Radar Online
+  socket.on('online_radar', (playersList) => {
+    const countEl = document.getElementById('onlineCountText');
+    const listEl = document.getElementById('onlinePlayersList');
+    if (countEl) countEl.textContent = `${playersList.length} ONLINE`;
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      playersList.forEach(p => {
+        const div = document.createElement('div');
+        div.style.cssText = "display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:8px; border:1px solid #333;";
+        div.innerHTML = `
+          <img src="assets/characters/${p.activeSkin}.png" onerror="this.src='assets/characters/bobby.png'" style="width:36px; height:36px; border-radius:6px; object-fit:cover; border:1px solid #555;">
+          <div style="color:#fff; font-weight:bold; font-size:0.95rem;">${p.nick}</div>
+          <div style="margin-left:auto; width:8px; height:8px; background:#22b422; border-radius:50%; box-shadow:0 0 5px #22b422;"></div>
+        `;
+        listEl.appendChild(div);
+      });
+    }
+  });
+
+  // NOWOŚĆ: Radar Kasyna wyświetlany w Lobby
+  socket.on('casino_global_status', (data) => {
+    const radar = document.getElementById('casinoRadar');
+    if (radar) {
+      if (data.playing.length === 0) {
+        radar.innerHTML = '<span style="color:#aaa">STÓŁ PUSTY</span>';
+      } else {
+        if (data.playing.length > 2) {
+          radar.innerHTML = `🔥 W GRZE: ${data.playing.length}/${data.max} (${data.playing.slice(0,2).join(', ')}...)`;
+        } else {
+          radar.innerHTML = `🔥 W GRZE: ${data.playing.join(', ')}`;
+        }
+      }
+    }
+  });
+
   socket.on('table_joined', (data) => {
     PlayerState.coins = data.newBalance;
     currentPokerRole = data.role || 'player';
@@ -484,6 +526,10 @@ function createPlayerAvatar(nick, chips, isMyTurn, phase) {
     ${cardsHtml}
   `;
   return div;
+}
+
+export function sendSkinUpdateToServer(skin) {
+  if (socket && socket.connected) socket.emit('update_skin', skin);
 }
 
 export function requestRebuy(amount) {
