@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v19';
+const CACHE_NAME = 'bobby-bird-v20'; // Wymuszenie naprawy przycisku po zmianach wypchnij na git
 
 const ASSETS_TO_CACHE = [
   './',
