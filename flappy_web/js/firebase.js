@@ -1,7 +1,8 @@
 // js/firebase.js
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, getDoc, setDoc, getDocs, query, orderBy, limit, addDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { PlayerState } from './state.js';
+import { getFirestore, collection, doc, getDoc, setDoc, getDocs, query, orderBy, limit, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { PlayerState, updateStateFromFirebase } from './state.js';
+import { EventEmitter } from './events.js';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCv02h10zIVw8DhrBhryiDnFIa_peZklKQ",
@@ -15,8 +16,60 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
+// --- CACHE STRUMIENIOWY (Eliminacja śmieciowych odczytów) ---
+let cacheFlappy = [];
+let cacheSpikes = [];
+let cacheSki = [];
+let cachePokerWinners = [];
+let cachePokerLosers = [];
+
 let saveTimeout = null;
 
+// ── BAZA TLENOWA (Real-time Snapshots) ────────────────────────────────────────
+export function initRealtimeStreams() {
+  // Zamiast pytać bazy co 60 sekund, otwieramy tunel. Baza sama wyśle dane, gdy coś się zmieni.
+  onSnapshot(query(collection(db, 'leaderboard'), orderBy('score', 'desc'), limit(10)), (snap) => {
+    cacheFlappy = snap.docs.map(d => d.data());
+  });
+
+  onSnapshot(query(collection(db, 'leaderboard'), orderBy('spikesBestScore', 'desc'), limit(10)), (snap) => {
+    cacheSpikes = snap.docs.map(d => d.data()).filter(d => (d.spikesBestScore || 0) > 0);
+  });
+
+  onSnapshot(query(collection(db, 'leaderboard'), orderBy('skiBestScore', 'desc'), limit(10)), (snap) => {
+    cacheSki = snap.docs.map(d => d.data()).filter(d => (d.skiBestScore || 0) > 0);
+  });
+
+  onSnapshot(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit', 'desc'), limit(5)), (snap) => {
+    cachePokerWinners = snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) > 0);
+  });
+
+  onSnapshot(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit', 'asc'), limit(5)), (snap) => {
+    cachePokerLosers = snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) < 0);
+  });
+
+  // Strumień Zleceń na Głowy (Bounties) - Reaktywny UI
+  onSnapshot(query(collection(db, 'bounties'), orderBy('createdAt', 'desc')), (snap) => {
+    const bounties = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    EventEmitter.emit('BOUNTIES_UPDATED', bounties);
+  });
+}
+
+// Interfejsy dla starego kodu (Zwracają dane natychmiastowo z Cache'u RAM!)
+export async function getTopScores()       { return cacheFlappy; }
+export async function getSpikesTopScores() { return cacheSpikes; }
+export async function getSkiTopScores()    { return cacheSki; }
+export async function getPokerTopWinners() { return cachePokerWinners; }
+export async function getPokerTopLosers()  { return cachePokerLosers; }
+
+export async function getAllPlayerNicks() {
+  try {
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score', 'desc'), limit(100)));
+    return snap.docs.map(d => d.data().nick);
+  } catch(e) { return []; }
+}
+
+// ── LOGOWANIE I ZAPIS ────────────────────────────────────────────────────────
 export async function loadPlayerData(nick, pin) {
   try {
     const snap = await getDoc(doc(db, 'leaderboard', nick));
@@ -24,136 +77,104 @@ export async function loadPlayerData(nick, pin) {
       const d = snap.data();
       if (d.pin && d.pin !== pin) return { error: 'invalid_pin' };
       if (!d.pin) await setDoc(doc(db, 'leaderboard', nick), { pin }, { merge: true });
-
-      // Aktualizacja centralnego stanu z chmury
-      PlayerState.updateFromFirebase(d);
-      PlayerState.nick = nick;
-      PlayerState.pin = pin;
-      return { success: true };
+      updateStateFromFirebase(d);
     } else {
-      // Rejestracja nowego gracza w pamięci RAM i bazie
-      PlayerState.updateFromFirebase({}); // Inicjalizuje zera i postać 'bobby'
-      PlayerState.nick = nick;
-      PlayerState.pin = pin;
-
       await setDoc(doc(db, 'leaderboard', nick), {
-        nick, score: 0, coins: 0, unlockedSkins: ['bobby'], activeSkin: 'bobby', pin, date: new Date(),
-        stats: PlayerState.stats
+        nick, pin, score: 0, coins: 0, activeSkin: 'bobby', unlockedSkins: ['bobby'],
+        stats: { jumps: 0, deaths: 0, spikesHits: 0 }
       });
-      return { success: true };
+      updateStateFromFirebase({ nick, pin });
     }
-  } catch(e) {
-    console.warn('Błąd loadPlayerData:', e);
-    return { error: 'network_error' };
+    PlayerState.nick = nick;
+    PlayerState.pin = pin;
+
+    // Inicjacja strumieni dopiero po udanym logowaniu
+    initRealtimeStreams();
+    return { success: true };
+  } catch (e) {
+    console.error('Błąd logowania:', e);
+    return { error: 'db_error' };
   }
 }
 
-export async function saveProgress(immediate = false) {
-  const executeSave = async () => {
+export async function saveProgress(force = false) {
+  if (!PlayerState.nick) return;
+  if (saveTimeout) clearTimeout(saveTimeout);
+
+  const doSave = async () => {
     try {
-      const ref = doc(db, 'leaderboard', PlayerState.nick);
-      await setDoc(ref, {
-        nick: PlayerState.nick,
+      await setDoc(doc(db, 'leaderboard', PlayerState.nick), {
         score: PlayerState.bestScore,
-        skiBestScore: PlayerState.skiBestScore,
         spikesBestScore: PlayerState.spikesBestScore,
-        date: new Date(),
+        skiBestScore: PlayerState.skiBestScore,
         coins: PlayerState.coins,
-        unlockedSkins: PlayerState.unlockedSkins,
         activeSkin: PlayerState.activeSkin,
-        pin: PlayerState.pin,
+        unlockedSkins: PlayerState.unlockedSkins,
         stats: PlayerState.stats
       }, { merge: true });
-    } catch(e) { console.warn('Błąd saveProgress:', e); }
+    } catch(e) { console.error('Błąd zapisu:', e); }
   };
 
-  if (immediate) {
-    if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
-    await executeSave();
-  } else {
-    if (!saveTimeout) {
-      saveTimeout = setTimeout(() => { executeSave(); saveTimeout = null; }, 5000);
-    }
-  }
+  if (force) doSave();
+  else saveTimeout = setTimeout(doSave, 2500);
 }
 
-export async function getTopScores() {
-  try {
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(10)));
-    return snap.docs.map(d => d.data());
-  } catch(e) { console.warn('Błąd getTopScores:', e); return []; }
-}
+// ── ATOMOWE TRANSAKCJE BAZY DANYCH (Backend Authority) ────────────────────────
+export async function createBountySecurely(creatorNick, victimNick, mode, targetScore, reward) {
+  return await runTransaction(db, async (t) => {
+    const creatorRef = doc(db, 'leaderboard', creatorNick);
+    const creatorDoc = await t.get(creatorRef);
+    const currentCoins = creatorDoc.data()?.coins || 0;
 
-export async function fetchActiveBounties() {
-  try {
-    const snap = await getDocs(query(collection(db, 'bounties'), orderBy('createdAt', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (e) { console.warn('Błąd fetchActiveBounties:', e); return []; }
-}
+    if (currentCoins < reward) throw new Error("Nie masz tyle monet!");
 
-export async function createBountyInDb(victim, targetScore, reward, mode = 'flappy') {
-  try {
-    await addDoc(collection(db, 'bounties'), {
-      creator: PlayerState.nick,
-      victim: victim,
-      targetScore: Number(targetScore),
-      reward: Number(reward),
+    const newBountyRef = doc(collection(db, 'bounties'));
+    t.update(creatorRef, { coins: currentCoins - reward }); // Pobranie z konta
+
+    t.set(newBountyRef, {
+      creator: creatorNick,
+      victim: victimNick,
       mode: mode,
-      createdAt: new Date()
+      targetScore: targetScore,
+      reward: reward,
+      createdAt: Date.now()
     });
     return true;
-  } catch (e) { console.warn('Błąd createBounty:', e); return false; }
+  });
 }
 
-export async function syncPlayerState() {
-  try {
-    if (!PlayerState.nick) return;
-    const snap = await getDoc(doc(db, 'leaderboard', PlayerState.nick));
-    if (snap.exists()) PlayerState.updateFromFirebase(snap.data());
-  } catch(e) { console.warn('Błąd syncPlayerState:', e); }
-}
+export async function claimBountySecurely(bountyId, claimantNick) {
+  return await runTransaction(db, async (t) => {
+    const bountyRef = doc(db, 'bounties', bountyId);
+    const claimantRef = doc(db, 'leaderboard', claimantNick);
 
-export async function removeBountyFromDb(bountyId) {
-  try {
-    await deleteDoc(doc(db, 'bounties', bountyId));
-    return true;
-  } catch (e) { console.warn('Błąd removeBounty:', e); return false; }
-}
+    const bountyDoc = await t.get(bountyRef);
+    if (!bountyDoc.exists()) throw new Error("Zlecenie nie istnieje lub ktoś Cię ubiegł!");
+    const bounty = bountyDoc.data();
 
-export async function getSkiTopScores() {
-  try {
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('skiBestScore','desc'), limit(10)));
-    return snap.docs.map(d => d.data()).filter(d => (d.skiBestScore || 0) > 0);
-  } catch(e) { console.warn('Błąd getSkiTopScores:', e); return []; }
-}
+    // Weryfikacja tożsamości
+    if (bounty.victim.toLowerCase() !== claimantNick.toLowerCase()) {
+      throw new Error("To nie jest zlecenie na Twoją głowę!");
+    }
 
-export async function getSpikesTopScores() {
-  try {
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('spikesBestScore','desc'), limit(10)));
-    return snap.docs.map(d => d.data()).filter(d => (d.spikesBestScore || 0) > 0);
-  } catch(e) { console.warn('Błąd getSpikesTopScores:', e); return []; }
-}
+    const claimantDoc = await t.get(claimantRef);
+    const claimantData = claimantDoc.data();
 
-export async function getAllPlayerNicks() {
-  try {
-    // Pobiera do 100 aktywnych graczy z bazy
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(100)));
-    return snap.docs.map(d => d.data().nick);
-  } catch(e) { console.warn('Błąd pobierania listy graczy:', e); return []; }
-}
+    // BEZPIECZEŃSTWO: Source of Truth. Sprawdzamy wynik zapisany w BAZIE, nie u klienta.
+    let currentBest = 0;
+    if (bounty.mode === 'flappy') currentBest = claimantData.score || 0;
+    else if (bounty.mode === 'spikes') currentBest = claimantData.spikesBestScore || 0;
+    else if (bounty.mode === 'ski') currentBest = claimantData.skiBestScore || 0;
+    else if (bounty.mode === 'poker') currentBest = claimantData.pokerNetProfit || 0;
 
-export async function getPokerTopWinners() {
-  try {
-    // Pobiera top 5 graczy z największym plusem
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit','desc'), limit(5)));
-    return snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) > 0);
-  } catch(e) { console.warn('Błąd getPokerTopWinners:', e); return []; }
-}
+    if (currentBest < bounty.targetScore) {
+      throw new Error(`Oficjalny wynik w bazie to ${currentBest}. Za mało!`);
+    }
 
-export async function getPokerTopLosers() {
-  try {
-    // Pobiera top 5 graczy z największym minusem (rosnąco, czyli od największego minusa w dół)
-    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit','asc'), limit(5)));
-    return snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) < 0);
-  } catch(e) { console.warn('Błąd getPokerTopLosers:', e); return []; }
+    // Przelew nagrody i usunięcie kontraktu
+    t.update(claimantRef, { coins: (claimantData.coins || 0) + bounty.reward });
+    t.delete(bountyRef);
+
+    return bounty.reward;
+  });
 }
