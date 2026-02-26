@@ -91,17 +91,26 @@ export async function fetchActiveBounties() {
   } catch (e) { console.warn('Błąd fetchActiveBounties:', e); return []; }
 }
 
-export async function createBountyInDb(victim, targetScore, reward) {
+export async function createBountyInDb(victim, targetScore, reward, mode = 'flappy') {
   try {
     await addDoc(collection(db, 'bounties'), {
       creator: PlayerState.nick,
       victim: victim,
       targetScore: Number(targetScore),
       reward: Number(reward),
+      mode: mode,
       createdAt: new Date()
     });
     return true;
   } catch (e) { console.warn('Błąd createBounty:', e); return false; }
+}
+
+export async function syncPlayerState() {
+  try {
+    if (!PlayerState.nick) return;
+    const snap = await getDoc(doc(db, 'leaderboard', PlayerState.nick));
+    if (snap.exists()) PlayerState.updateFromFirebase(snap.data());
+  } catch(e) { console.warn('Błąd syncPlayerState:', e); }
 }
 
 export async function removeBountyFromDb(bountyId) {
@@ -131,4 +140,20 @@ export async function getAllPlayerNicks() {
     const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('score','desc'), limit(100)));
     return snap.docs.map(d => d.data().nick);
   } catch(e) { console.warn('Błąd pobierania listy graczy:', e); return []; }
+}
+
+export async function getPokerTopWinners() {
+  try {
+    // Pobiera top 5 graczy z największym plusem
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit','desc'), limit(5)));
+    return snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) > 0);
+  } catch(e) { console.warn('Błąd getPokerTopWinners:', e); return []; }
+}
+
+export async function getPokerTopLosers() {
+  try {
+    // Pobiera top 5 graczy z największym minusem (rosnąco, czyli od największego minusa w dół)
+    const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('pokerNetProfit','asc'), limit(5)));
+    return snap.docs.map(d => d.data()).filter(d => (d.pokerNetProfit || 0) < 0);
+  } catch(e) { console.warn('Błąd getPokerTopLosers:', e); return []; }
 }

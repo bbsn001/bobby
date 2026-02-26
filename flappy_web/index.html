@@ -10,7 +10,45 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Bobby Bird" />
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+  <link rel="icon" href="assets/icons/icon-192.png" type="image/png" />
   <style>
+    /* --- NEON ARCADE UI OVERHAUL --- */
+
+    /* Tło z subtelnym gradientem (zamiast płaskiego granatu) */
+    body { background: radial-gradient(circle at 50% 0%, #1e1e4a 0%, #0a0a1a 100%); }
+
+    /* Glassmorphism na Ekran Logowania */
+    .login-glass {
+      background: rgba(15, 20, 50, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
+      padding: 35px 25px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      display: flex; flex-direction: column; align-items: center; width: 85%; max-width: 320px;
+    }
+    .login-logo { width: 110px; height: 110px; margin-bottom: 15px; filter: drop-shadow(0 0 15px rgba(255,215,0,0.5)); }
+
+    /* Luksusowa Karta Gracza (Lobby) */
+    .player-id-card {
+      display: flex; align-items: center; justify-content: flex-start;
+      background: linear-gradient(145deg, #1e1e4a, #131340);
+      border: 2px solid #cca100; border-radius: 18px;
+      padding: 12px 15px; margin-bottom: 20px; width: 100%; max-width: 320px;
+      box-shadow: 0 6px 0 #8b6e00, 0 10px 20px rgba(0,0,0,0.5);
+      position: relative; flex-shrink: 0; transition: transform 0.1s;
+    }
+    .player-id-avatar { width: 60px; height: 60px; border-radius: 12px; object-fit: cover; border: 2px solid #ffd700; background: #000; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    .player-id-info { flex: 1; margin-left: 15px; text-align: left; }
+    .player-id-nick { font-size: 1.3rem; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+    .player-id-coins { font-size: 1.1rem; font-weight: bold; color: #ffd700; margin-top: 4px; }
+    .player-id-bird { position: absolute; top: -20px; right: -15px; width: 65px; transform: rotate(15deg); filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.6)); }
+
+    /* Ulepszone inputy */
+    .glass-input {
+      background: rgba(0,0,0,0.4); border: 2px solid #333; color: #fff; border-radius: 12px;
+      padding: 15px; font-size: 1.1rem; width: 100%; margin-bottom: 15px; text-align: center;
+      transition: border-color 0.2s;
+    }
+    .glass-input:focus { border-color: #ffd700; outline: none; }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
@@ -55,37 +93,171 @@
     .cc-btn { width: 100%; height: 34px; font-size: .78rem; font-weight: bold; border: none; border-radius: 7px; cursor: pointer; touch-action: manipulation; margin-top: 2px; }
     .cc-btn.active { background: #22b422; color: #fff; } .cc-btn.select { background: #1a6aff; color: #fff; } .cc-btn.buy { background: #ffd700; color: #0f1432; } .cc-btn.locked { background: #1e1e4a; color: #444; cursor: default; }
     #charPicker { scrollbar-width: none; } #charPicker::-webkit-scrollbar { display: none; }
+
+  /* LOBBY GRID & META BAR (Wersja 3D Taktylna) */
+    .game-modes-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; max-width: 320px; margin-bottom: 25px; flex-shrink: 0;
+    }
+    .mode-card {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 110px; border-radius: 16px; text-align: center; padding: 12px 8px;
+      cursor: pointer; touch-action: manipulation; transition: transform 0.1s, box-shadow 0.1s;
+      border: 2px solid transparent; -webkit-user-select: none; user-select: none;
+    }
+    /* Płynne wciśnięcie przycisku do podłogi */
+    .mode-card:active { transform: translateY(5px); }
+    .mode-card.disabled { filter: grayscale(1) opacity(0.5); pointer-events: none; }
+
+    .mode-icon { font-size: 2.6rem; margin-bottom: 4px; line-height: 1; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+    .mode-title { font-size: 0.95rem; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+    .mode-price { font-size: 0.8rem; opacity: 0.85; margin-top: 4px; font-weight: bold; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; }
+
+    /* Kolorystyka i cienie 3D (box-shadow generuje sztuczny "spód" przycisku) */
+    .mode-card.yellow { background: #ffd700; color: #0f1432; border-color: #cca100; box-shadow: 0 6px 0 #b38f00; }
+    .mode-card.yellow:active { box-shadow: 0 1px 0 #b38f00; }
+
+    .mode-card.ice { background: #e0f2fe; color: #1e3a8a; border-color: #7dd3fc; box-shadow: 0 6px 0 #7dd3fc; }
+    .mode-card.ice:active { box-shadow: 0 1px 0 #7dd3fc; }
+
+    .mode-card.casino { background: #4c1d95; color: #ddd6fe; border-color: #7c3aed; box-shadow: 0 6px 0 #3b0764; }
+    .mode-card.casino:active { box-shadow: 0 1px 0 #3b0764; }
+
+    .mode-card.red { background: #dc3232; color: #fff; border-color: #ff5555; box-shadow: 0 6px 0 #991b1b; }
+    .mode-card.red:active { box-shadow: 0 1px 0 #991b1b; }
+
+    .mode-card.dark { background: #1e1e4a; color: #aaa; border-color: #333; box-shadow: 0 6px 0 #11112a; }
+    .mode-card.dark:active { box-shadow: 0 1px 0 #11112a; }
+
+    /* Pasek dolny (Meta) - również w 3D */
+    .meta-row { display: flex; gap: 10px; width: 100%; max-width: 320px; flex-shrink: 0; }
+    .meta-btn {
+      flex: 1; height: 50px; padding: 0; font-size: 0.75rem; font-weight: bold;
+      background: #131340; border: 2px solid #2a2a6a; border-radius: 12px; color: #aaa;
+      box-shadow: 0 5px 0 #0a0a22; display: flex; align-items: center; justify-content: center; gap: 5px;
+      transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+    }
+    .meta-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #0a0a22; background: #1e1e4a; color: #fff; border-color: #444; }
+
+  /* ZAKŁADKI LEADERBOARDÓW */
+    .lb-tab { flex: 1; height: 42px; background: transparent; border: none; border-radius: 8px; font-size: 1.4rem; cursor: pointer; filter: grayscale(1) opacity(0.4); transition: all 0.2s; }
+    .lb-tab.active { filter: grayscale(0) opacity(1); background: #1e1e4a; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transform: scale(1.05); }
+    .lb-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2a2a6a; }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-rank { font-weight: bold; width: 25px; color: #aaa; }
+    .lb-nick { flex: 1; color: #fff; font-weight: bold; font-size: 0.95rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+    .lb-score { color: #ffd700; font-weight: bold; text-align: right; }
+
+  /* HIGH-RES KARTY POKEROWE */
+    .playing-card {
+      width: 55px; height: 80px;
+      background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+      border-radius: 6px; position: relative;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.5), inset 0 0 2px rgba(255,255,255,0.8);
+      border: 1px solid #ccc; font-family: "Arial", sans-serif;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      transition: transform 0.2s;
+    }
+    .playing-card.red { color: #dc3232; }
+    .playing-card.black { color: #111; }
+
+    .card-corner { position: absolute; font-weight: bold; font-size: 0.9rem; text-align: center; line-height: 0.9; }
+    .card-corner.top-left { top: 4px; left: 4px; }
+    .card-corner.bottom-right { bottom: 4px; right: 4px; transform: rotate(180deg); }
+
+    .card-center { font-size: 2.2rem; filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.1)); }
+
+    /* REWERS KARTY (Wersja Playboy) */
+    .playing-card-back {
+      width: 55px; height: 80px;
+      background-color: #0f1432;
+      background-image: url('assets/icons/playboy_back.jpg');
+      background-size: cover;
+      background-position: center;
+      border: 2px solid #fff; border-radius: 6px; box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+    }
+
+  /* === POKER ANIMACJE === */
+  @keyframes deal-card {
+    from { opacity: 0; transform: translateY(-30px) rotate(-8deg) scale(0.8); }
+    to   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+  }
+  @keyframes pot-bounce {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.3); color: #ffd700; }
+    100% { transform: scale(1); }
+  }
+  @keyframes my-turn-pulse {
+    0%, 100% { box-shadow: 0 0 8px #ff4500; }
+    50%       { box-shadow: 0 0 22px #ff4500, 0 0 40px #ff450055; }
+  }
+  .anim-card { animation: deal-card 0.35s cubic-bezier(.22,1,.36,1) both; }
+  .anim-pot  { animation: pot-bounce 0.4s ease-out; }
+  .my-turn   { animation: my-turn-pulse 1.2s ease-in-out infinite; }
+
+  /* KAFELKI STATYSTYK */
+  .stat-card { background: #0a0a1a; border: 1px solid #2a2a6a; border-radius: 12px; padding: 12px 5px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+  .stat-icon { font-size: 1.8rem; margin-bottom: 4px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+  .stat-val { font-size: 1.2rem; font-weight: 900; color: #fff; }
+  .stat-label { font-size: 0.65rem; color: #888; text-transform: uppercase; margin-top: 4px; font-weight: bold; }
   </style>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
-<div id="nickScreen" class="screen">
-  <div class="screen-inner">
-    <div class="screen-title">🐦 Bobby Bird</div>
-    <div class="screen-sub">Zaloguj się lub stwórz konto (z PINem)</div>
-    <input id="nickInput" class="big-input" type="text" maxlength="16" placeholder="Twój nick" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-    <input id="pinInput" class="big-input" type="password" maxlength="4" inputmode="numeric" placeholder="PIN (4 cyfry)" autocomplete="off" style="margin-bottom:8px" />
-    <div id="loginError" style="color:#dc3232; font-size:14px; font-weight:bold; margin-bottom:12px; display:none;">Błędny PIN!</div>
-    <button id="nickConfirm" class="btn btn-yellow">DALEJ →</button>
+<div id="nickScreen" class="screen" style="display:flex; justify-content:center; align-items:center;">
+  <div class="login-glass">
+    <img src="assets/icons/icon-192.png" class="login-logo" alt="Bobby Bird">
+    <h1 style="color:#ffd700; font-size:2.2rem; margin-bottom:5px; text-shadow:0 2px 4px #000; font-weight:900;">Bobby Bird</h1>
+    <p style="color:#aaa; font-size:0.9rem; margin-bottom:30px; text-align:center;">Zaloguj się lub stwórz konto</p>
+    <input type="text" id="nickInput" class="glass-input" placeholder="Twój nick" maxlength="16" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input type="password" id="pinInput" class="glass-input" placeholder="PIN (4 cyfry)" inputmode="numeric" maxlength="4" autocomplete="off" style="margin-bottom:8px;">
+    <div id="loginError" style="color:#dc3232; font-size:14px; font-weight:bold; margin-bottom:12px; display:none; width:100%; text-align:center;">Błędny PIN!</div>
+    <button id="nickConfirm" class="btn btn-yellow" style="width:100%; border-radius:14px; height:55px; font-size:1.2rem; box-shadow:0 5px 0 #b38f00, 0 10px 15px rgba(255,215,0,0.3); font-weight:bold;">WEJDŹ DO GRY ➔</button>
   </div>
 </div>
 
 <div id="lobbyScreen" class="screen" style="display:none">
-  <div class="screen-inner">
-    <div class="screen-title" style="font-size:1.55em;margin-bottom:2px">Bobby Bird</div>
-    <div id="lobbyNick" style="color:#aaa;font-size:.85rem;margin-bottom:10px"></div>
-    <div id="lobbyCoins" class="coins">🎵 0 coinów</div>
-    <div id="charPreview" class="char-preview">
-      <img id="charPreviewImg" src="" alt="" />
-      <div><div id="charPreviewName" class="cp-name">Bobby</div><div id="charPreviewBonus" class="cp-bonus">brak bonusów</div></div>
+  <div class="screen-inner" style="padding-top:30px; justify-content:flex-start;">
+
+    <div class="player-id-card">
+      <img id="charPreviewImg" src="" class="player-id-avatar" alt="">
+      <div class="player-id-info">
+        <div id="lobbyNick" class="player-id-nick">BOBBY</div>
+        <div id="lobbyCoins" class="player-id-coins">🎵 0</div>
+      </div>
+      <img src="assets/icons/icon-192.png" class="player-id-bird" alt="">
+      <div id="charPreviewName" style="display:none"></div>
+      <div id="charPreviewBonus" style="display:none"></div>
     </div>
-    <div id="charPicker" style="display:flex;overflow-x:auto;gap:8px;padding:4px 2px;width:100%;max-width:280px;margin-bottom:18px;-webkit-overflow-scrolling:touch"></div>
-    <button id="lobbyPlay" class="btn btn-yellow">▶ GRAJ</button>
-    <button id="lobbyShop" class="btn btn-blue">🛒 SKLEP</button>
-    <button id="lobbySpikes" class="btn" style="display:none; background:#dc3232; color:#fff; margin-top:10px; border:2px solid #ff5555; box-shadow: 0 0 15px #dc323288;">🔥 TRYB KOLCÓW (HARDCORE)</button>
-    <button id="lobbySki" class="btn" style="display:none; background:#e0f2fe; color:#1e3a8a; margin-top:10px; border:2px solid #7dd3fc; box-shadow: 0 0 15px #7dd3fc88;">🏔️ IGRZYSKA ZIMOWE</button>
-    <button id="lobbyStats" class="btn btn-dark" style="margin-top:10px;">📊 STATY</button>
-    <button id="lobbyBounties" class="btn" style="margin-top:10px; background:#2a0a4a; color:#d8b4fe; border:1px solid #6b21a8;">🎯 TABLICA HAŃBY (KONTRAKTY)</button>
+
+    <div id="charPicker" style="display:flex;overflow-x:auto;gap:8px;padding:4px 2px;width:100%;max-width:320px;margin-bottom:25px;-webkit-overflow-scrolling:touch;flex-shrink:0;min-height:70px;"></div>
+
+    <div class="game-modes-grid">
+      <div id="lobbyPlay" class="mode-card yellow">
+        <div class="mode-icon">🐦</div>
+        <div class="mode-title">KLASYK</div>
+      </div>
+
+      <div id="lobbySpikes" class="mode-card dark disabled"></div>
+
+      <div id="lobbySki" class="mode-card ice">
+        <div class="mode-icon">🏔️</div>
+        <div class="mode-title">SKOKI</div>
+      </div>
+
+      <div id="lobbyPoker" class="mode-card casino">
+        <div class="mode-icon">🎰</div>
+        <div class="mode-title">KASYNO</div>
+        <div class="mode-price">🎵 500</div>
+      </div>
+    </div>
+
+    <div class="meta-row">
+      <button id="lobbyShop" class="meta-btn">🛒 SKLEP</button>
+      <button id="lobbyStats" class="meta-btn">📊 STATY</button>
+      <button id="lobbyBounties" class="meta-btn">🎯 KONTRAKTY</button>
+      <button id="lobbyLeaderboard" class="meta-btn" style="color: #ffd700; border-color: #cca100;">🏆 LIDERZY</button>
+    </div>
   </div>
 </div>
 
@@ -100,16 +272,17 @@
 </div>
 
 <div id="statsScreen" class="screen" style="display:none">
-  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px; width:100%">
     <div class="shop-header">
       <button id="statsBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
-      <div class="coins" style="margin:0;color:#8be;">STATY</div>
+      <div class="coins" style="margin:0;color:#8be;">STATYSTYKI</div>
     </div>
-    <div style="width:100%; background:#131340; border:2px solid #2a2a6a; border-radius:12px; padding:20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-      <div style="color:#ffd700; font-size:1.1rem; font-weight:bold; margin-bottom:20px; text-align:center; letter-spacing:1px;">JAK BARDZO JESTEŚCIE CHUJOWI</div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;"><span style="color:#aaa;">Ile razy zdechłeś:</span><span id="statDeaths" style="color:#dc3232; font-weight:bold; font-size:1.1rem;">0</span></div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;"><span style="color:#aaa;">Spocone kliknięcia:</span><span id="statJumps" style="color:#fff; font-weight:bold; font-size:1.1rem;">0</span></div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #2a2a6a; padding-bottom:8px;"><span style="color:#aaa;">Fuks w trybie Kolców:</span><span id="statSpikes" style="color:#fff; font-weight:bold; font-size:1.1rem;">0</span></div>
+
+    <div style="width:100%; background:rgba(19,19,64,0.7); border:2px solid #2a2a6a; border-radius:16px; padding:20px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(8px);">
+      <div style="color:#ffd700; font-size:1.1rem; font-weight:900; margin-bottom:20px; text-align:center; text-transform:uppercase; letter-spacing:1px;">Księga Życia i Śmierci</div>
+
+      <div id="statGridContainer" style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      </div>
     </div>
   </div>
 </div>
@@ -132,21 +305,119 @@
 
     <div id="bountyForm" style="display:none; width:100%; background:#0f1432; border:1px solid #333; border-radius:12px; padding:15px; margin-top:10px;">
       <div style="color:#ffd700; font-weight:bold; margin-bottom:10px; text-align:center;">ZAMROŹ SWÓJ HAJS</div>
-      <select id="bountyVictim" class="big-input" style="width:100%; height:45px; font-size:14px; background:#0f1432; color:#fff;">
+
+      <select id="bountyVictim" class="big-input" style="width:100%; height:45px; font-size:14px; background:#0f1432; color:#fff; margin-bottom:10px;">
         <option value="">Wybierz ofiarę...</option>
       </select>
-      <input id="bountyScore" class="big-input" style="width:100%; height:45px; font-size:14px;" type="number" placeholder="Wymagany wynik do pobicia" />
-      <input id="bountyReward" class="big-input" style="width:100%; height:45px; font-size:14px;" type="number" placeholder="Nagroda (z Twojej kieszeni)" />
+
+      <select id="bountyMode" class="big-input" style="width:100%; height:45px; font-size:14px; background:#0f1432; color:#fff; margin-bottom:10px;">
+        <option value="flappy">🐦 Klasyk (Max wynik)</option>
+        <option value="spikes">🔥 Kolce (Max punktów)</option>
+        <option value="ski">🏔️ Skoki (Max dystans)</option>
+        <option value="poker">🎰 Kasyno (Zysk netto żetonów)</option>
+      </select>
+
+      <input id="bountyScore" class="big-input" style="width:100%; height:45px; font-size:14px; margin-bottom:10px;" type="number" placeholder="Wymagany wynik ofiary" />
+      <input id="bountyReward" class="big-input" style="width:100%; height:45px; font-size:14px; margin-bottom:10px;" type="number" placeholder="Nagroda (z Twojej kieszeni)" />
       <div id="bountyError" style="color:#dc3232; font-size:13px; font-weight:bold; margin-bottom:10px; text-align:center; display:none;">Błąd!</div>
-      <button id="btnSubmitBounty" class="btn" style="width:100%; background:#dc3232; color:#fff;">KŁADĘ HAJS NA STÓŁ</button>
+      <button id="btnSubmitBounty" class="btn btn-yellow" style="width:100%; height:45px; margin-bottom:0;">KŁADĘ HAJS NA STÓŁ</button>
     </div>
   </div>
 </div>
 
-<div id="hud" style="position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:10;display:none">
-  <span id="hudCoins" style="position:absolute;top:10px;left:10px;color:#ffd700;font:bold 15px Arial">🎵0</span>
-  <span id="hudScore" style="position:absolute;top:6px;right:10px;color:#fff;font:bold 28px Arial;transition:transform 0.1s ease">0</span>
-  <span id="hudHeart" style="position:absolute;top:30px;left:10px;font:15px Arial"></span>
+<div id="rebuyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 300; align-items: center; justify-content: center;">
+  <div style="background: #0f1432; border: 2px solid #ffd700; border-radius: 12px; padding: 25px 20px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 0 20px #ffd70055;">
+    <div style="color: #ffd700; font-size: 1.3rem; font-weight: bold; margin-bottom: 10px;">DOKUP ŻETONY</div>
+    <div style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">Dostępne w portfelu:<br><span id="rebuyWalletBalance" style="color: #fff; font-size: 1.2rem; font-weight: bold;">🎵 0</span></div>
+    <input type="number" id="rebuyInput" class="big-input" style="width: 100%; height: 50px; margin-bottom: 20px; font-size: 1.2rem;" value="500">
+    <div style="display: flex; gap: 10px;">
+      <button id="btnCancelRebuy" class="btn btn-dark btn-sm" style="flex: 1; height: 45px;">ANULUJ</button>
+      <button id="btnConfirmRebuy" class="btn btn-yellow btn-sm" style="flex: 1; height: 45px;">DOKUP</button>
+    </div>
+  </div>
+</div>
+
+<div id="pokerScreen" class="screen" style="display:none; position:relative; background: #073b07; background-image: radial-gradient(#0a5c0a 1px, transparent 1px); background-size: 20px 20px;">
+
+  <div id="showdownOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.85); z-index:200; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center;">
+    <div id="showdownWinnerName" style="color:#ffd700; font-size:1.8rem; font-weight:bold; margin-bottom:10px;"></div>
+    <div id="showdownCards" style="display:flex; gap:10px; margin-bottom:20px;"></div>
+    <div id="showdownAmount" style="color:#fff; font-size:1.2rem;"></div>
+  </div>
+
+  <div class="screen-inner" style="justify-content: flex-start; padding: 10px; padding-top: 30px; width: 100%;">
+
+    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <button id="pokerExit" class="btn btn-dark btn-sm">🚪 WYJDŹ</button>
+      <div id="pokerStatus" style="color: #ffd700; font-weight: bold; font-size: 0.9rem; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 8px;">CZEKANIE NA GRACZY...</div>
+    </div>
+
+    <div id="otherPlayers" style="display: flex; justify-content: center; gap: 12px; width: 100%; margin-bottom: 10px; flex-wrap: wrap; min-height: 100px; align-items: flex-end;"></div>
+
+    <div id="pokerTableArea" style="position: relative; width: 100%; max-width: 400px; height: 260px; margin: 5px auto 25px auto; flex-shrink: 0;">
+
+      <div style="position: absolute; inset: 0 10px; background: #1a4a1a; border: 10px solid #3d2b1f; border-radius: 120px; box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.5);"></div>
+
+      <div id="boardCards" style="position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 4px; height: 50px;"></div>
+
+      <div id="potContainer" style="position: absolute; top: 68%; left: 50%; transform: translate(-50%, -50%); color: #ffd700; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 3px #000; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 10px; border: 1px solid #cca100;">
+        Pula: 0
+      </div>
+
+      <div id="seat-0" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); text-align: center; width: 100px; display: flex; flex-direction: column; align-items: center;">
+        <div id="myCards" style="display: flex; justify-content: center; margin-bottom: -15px; z-index: 1;"></div>
+        <div style="background: rgba(0,0,0,0.9); border: 2px solid #1a6aff; border-radius: 12px; padding: 6px 20px; box-shadow: 0 6px 15px rgba(0,0,0,0.6); position: relative; z-index: 2; min-width: 110px;">
+          <div id="pokerMyNick" style="color: #fff; font-size: 0.9rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-bottom: 2px;">TY</div>
+          <div id="pokerChips" style="color: #ffd700; font-size: 1.1rem; font-weight: bold;">0</div>
+          <div id="btnShowRebuy" style="position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; background: #1a6aff; border: 2px solid #fff; border-radius: 50%; color: #fff; font-weight: bold; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 8px #000; z-index: 10; transition: transform 0.1s;">+</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 100%; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 15px; margin-top: auto;">
+
+      <div id="raisePanel" style="display: none; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 1px solid #ffd700; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+        <div style="display: flex; justify-content: space-between; color: #fff; font-size: 0.8rem; margin-bottom: 15px; text-align: center;">
+          <div style="flex:1">MIN<br><span id="raiseMinDisplay" style="color: #aaa;">0</span></div>
+          <div style="flex:1.5; font-size: 1.6rem; font-weight: bold; color: #ffd700; display: flex; align-items: center; justify-content: center;" id="raiseValueDisplay">0</div>
+          <div style="flex:1">MAX<br><span id="raiseMaxDisplay" style="color: #aaa;">0</span></div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
+          <button id="btnRaise10" class="btn btn-dark btn-sm" style="border-radius: 20px; font-weight: bold; padding: 0;">+10</button>
+          <button id="btnRaise50" class="btn btn-dark btn-sm" style="border-radius: 20px; font-weight: bold; padding: 0;">+50</button>
+          <button id="btnRaise100" class="btn btn-dark btn-sm" style="border-radius: 20px; font-weight: bold; padding: 0;">+100</button>
+          <button id="btnRaiseAllIn" class="btn btn-dark btn-sm" style="border-radius: 20px; color: #dc3232; font-weight: bold; padding: 0;">MAX</button>
+        </div>
+        <div id="btnRaiseReset" style="text-align: center; margin-bottom: 15px; font-size: 0.75rem; color: #888; cursor: pointer; text-decoration: underline;">↺ Cofa do minimum</div>
+        <button id="btnConfirmRaise" class="btn btn-yellow btn-sm" style="width: 100%; height: 45px;">PRZEBIJAM: <span id="confirmRaiseVal">0</span></button>
+      </div>
+
+      <div id="pokerActionContainer" style="display: none;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+          <button id="pokerFold" class="btn btn-dark btn-sm" style="width: 100%; color: #dc3232;">FOLD</button>
+          <button id="pokerCheck" class="btn btn-blue btn-sm" style="width: 100%;">CHECK</button>
+          <button id="pokerRaise" class="btn btn-yellow btn-sm" style="width: 100%;">RAISE</button>
+        </div>
+      </div>
+
+      <div id="pokerReadyContainer" style="display: block; margin-top: 5px;">
+        <button id="pokerReadyBtn" class="btn btn-yellow" style="width: 100%; height: 50px; font-size: 1.1rem; border-radius: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(255,215,0,0.3);">✅ JESTEM GOTÓW</button>
+      </div>
+
+      <div id="observerContainer" style="display: none; margin-top: 5px; text-align: center;">
+        <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">👁️ JESTEŚ W LOŻY SZYDERCÓW</div>
+        <button id="pokerSitBtn" class="btn btn-yellow" style="width: 100%; height: 50px; font-size: 1.1rem; border-radius: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(255,215,0,0.3);" disabled>BRAK MIEJSC</button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<div id="hud" style="position:fixed;top:env(safe-area-inset-top, 10px);left:0;width:100%;pointer-events:none;z-index:10;display:none;padding-top:10px;">
+  <span id="hudCoins" style="position:absolute;top:10px;left:env(safe-area-inset-left, 10px);color:#ffd700;font:bold 15px Arial;text-shadow:1px 1px 2px #000;">🎵0</span>
+  <span id="hudScore" style="position:absolute;top:6px;right:env(safe-area-inset-right, 10px);color:#fff;font:bold 28px Arial;transition:transform 0.1s ease;text-shadow:2px 2px 4px #000;">0</span>
+  <span id="hudHeart" style="position:absolute;top:30px;left:env(safe-area-inset-left, 10px);font:15px Arial;text-shadow:1px 1px 2px #000;"></span>
 </div>
 
 <canvas id="gameCanvas" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) translateZ(0)"></canvas>
@@ -166,6 +437,27 @@
     });
   }
 </script>
+
+<div id="leaderboardScreen" class="screen" style="display:none">
+  <div class="screen-inner" style="justify-content:flex-start;padding-top:20px">
+    <div class="shop-header">
+      <button id="leaderboardBack" class="btn btn-dark btn-sm">← WRÓĆ</button>
+      <div class="coins" style="margin:0;color:#ffd700;">HALL OF FAME</div>
+    </div>
+
+    <div id="lbTabs" style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; background: #131340; padding: 6px; border-radius: 12px; border: 1px solid #2a2a6a;">
+      <button class="lb-tab active" data-tab="flappy">🐦</button>
+      <button class="lb-tab" data-tab="spikes">🔥</button>
+      <button class="lb-tab" data-tab="ski">🏔️</button>
+      <button class="lb-tab" data-tab="casino">🎰</button>
+    </div>
+
+    <div style="width:100%; background:#131340; border:2px solid #2a2a6a; border-radius:12px; padding:15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+      <div id="lbTitle" style="color:#aaa; font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; text-align:center; font-weight:bold;">Ładowanie danych...</div>
+      <div id="lbContent" style="display:flex; flex-direction:column; max-height: 45vh; overflow-y: auto;"></div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

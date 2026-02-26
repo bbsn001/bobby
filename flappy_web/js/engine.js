@@ -69,30 +69,60 @@ export async function applyActiveSkin(key) {
   collectH = collectCache[key] ? collectCache[key].h : COL_W;
 }
 
-// ── Tło i UI Cache ────────────────────────────────────────────────────────────
-const bgCacheCanvas = document.createElement('canvas'); bgCacheCanvas.width = GW; bgCacheCanvas.height = GH;
-const bgCtx = bgCacheCanvas.getContext('2d');
+// ── Tło i UI Cache (High-Res 3D) ──────────────────────────────────────────────
+function createHiResCache(w, h) {
+  const cvs = document.createElement('canvas');
+  cvs.width = Math.round(w * dpr);
+  cvs.height = Math.round(h * dpr);
+  const cx = cvs.getContext('2d');
+  cx.scale(dpr, dpr);
+  return { cvs, cx };
+}
+
+const { cvs: bgCacheCanvas, cx: bgCtx } = createHiResCache(GW, GH);
 bgCtx.fillStyle = '#0f1432'; bgCtx.fillRect(0, 0, GW, GH);
 bgCtx.fillStyle = '#b4c8ff';
 Array.from({ length: 25 }).forEach(() => {
   bgCtx.beginPath(); bgCtx.arc(Math.random()*GW, Math.random()*GH*0.75, Math.random()<0.3?1.5:1, 0, Math.PI*2); bgCtx.fill();
 });
 
-const uiCacheCanvas = document.createElement('canvas'); uiCacheCanvas.width = GW; uiCacheCanvas.height = GH;
-const uctx = uiCacheCanvas.getContext('2d');
 const SHOP_BTN = { x: GW - 120, y: GH - 80, w: 110, h: 64 };
 const LOBBY_BTN = { x: 10, y: GH - 80, w: 110, h: 64 };
 let uiCacheReady = false;
+const { cvs: uiCacheCanvas, cx: uctx } = createHiResCache(GW, GH);
 
 function buildUICache() {
-  uctx.textAlign = 'center'; uctx.font = 'bold 52px Arial'; uctx.fillStyle = '#ffd700';
-  uctx.fillText('Bobby Bird', GW/2, GH/4+10);
+  uctx.clearRect(0, 0, GW, GH);
+  // Tytuł z cieniem 3D
+  uctx.textAlign = 'center'; uctx.font = '900 52px Arial';
+  uctx.fillStyle = '#0f1432'; uctx.fillText('Bobby Bird', GW/2 + 4, GH/4 + 14);
+  uctx.fillStyle = '#ffd700'; uctx.fillText('Bobby Bird', GW/2, GH/4 + 10);
+
+  // Przycisk SKLEP (Z efektem wciśnięcia 3D)
+  uctx.fillStyle = '#0a0a22'; uctx.beginPath(); uctx.roundRect(SHOP_BTN.x, SHOP_BTN.y + 5, SHOP_BTN.w, SHOP_BTN.h, 12); uctx.fill();
   uctx.fillStyle = '#1a6aff'; uctx.beginPath(); uctx.roundRect(SHOP_BTN.x, SHOP_BTN.y, SHOP_BTN.w, SHOP_BTN.h, 12); uctx.fill();
-  uctx.font = 'bold 18px Arial'; uctx.fillStyle = '#fff'; uctx.fillText('\uD83D\uDED2 SKLEP', SHOP_BTN.x + SHOP_BTN.w/2, SHOP_BTN.y + SHOP_BTN.h/2 + 7);
+  uctx.font = 'bold 18px Arial'; uctx.fillStyle = '#fff'; uctx.fillText('🛒 SKLEP', SHOP_BTN.x + SHOP_BTN.w/2, SHOP_BTN.y + SHOP_BTN.h/2 + 7);
+
+  // Przycisk LOBBY (Z efektem wciśnięcia 3D)
+  uctx.fillStyle = '#0a0a22'; uctx.beginPath(); uctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); uctx.fill();
   uctx.fillStyle = '#dc3232'; uctx.beginPath(); uctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); uctx.fill();
   uctx.font = 'bold 16px Arial'; uctx.fillText('🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7);
   uiCacheReady = true;
 }
+
+// Zmienne Tablicowe (Teraz na High-Res)
+let leaderboard = [], leaderboardLoading = false, lbCacheReady = false, cachedLeaderboard = [], lastLeaderboardFetch = 0;
+const { cvs: lbCacheCanvas, cx: lbCtx } = createHiResCache(GW, 300);
+
+let spikesLeaderboard = [], spikesLbLoading = false, spikesLbReady = false, spikesCachedLb = [], lastSpikesLbFetch = 0;
+const { cvs: spikesLbCacheCanvas, cx: spikesLbCtx } = createHiResCache(GW, 300);
+
+// Pamięć podręczna dla kolców
+const { cvs: spikeLeftCanvas, cx: spikeLeftCtx } = createHiResCache(24, 32);
+spikeLeftCtx.fillStyle = '#888'; spikeLeftCtx.beginPath(); spikeLeftCtx.moveTo(0,0); spikeLeftCtx.lineTo(24,16); spikeLeftCtx.lineTo(0,32); spikeLeftCtx.fill();
+
+const { cvs: spikeRightCanvas, cx: spikeRightCtx } = createHiResCache(24, 32);
+spikeRightCtx.fillStyle = '#888'; spikeRightCtx.beginPath(); spikeRightCtx.moveTo(24,0); spikeRightCtx.lineTo(0,16); spikeRightCtx.lineTo(24,32); spikeRightCtx.fill();
 
 // ── Pomocnicze funkcje fizyczne ───────────────────────────────────────────────
 function overlaps(a, b) { return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
@@ -135,12 +165,6 @@ export const SceneManager = {
 
 const _cr = { x: 0, y: 0, w: 0, h: 0 };
 const _pr = { x: 0, y: 0, w: 0, h: 0 };
-let leaderboard = [], leaderboardLoading = false, lbCacheReady = false, cachedLeaderboard = [], lastLeaderboardFetch = 0;
-const lbCacheCanvas = document.createElement('canvas'); const lbCtx = lbCacheCanvas.getContext('2d');
-
-// --- NOWE ZMIENNE DLA KOLCÓW ---
-let spikesLeaderboard = [], spikesLbLoading = false, spikesLbReady = false, spikesCachedLb = [], lastSpikesLbFetch = 0;
-const spikesLbCacheCanvas = document.createElement('canvas'); const spikesLbCtx = spikesLbCacheCanvas.getContext('2d');
 
 // ── Tryb Flappy ───────────────────────────────────────────────────────────────
 export const FlappyMode = {
@@ -218,28 +242,44 @@ export const FlappyMode = {
     if (this.bird.y > GH || this.bird.y < -BIRD_SIZE) this.die();
   },
   draw() {
-    ctx.globalAlpha = this.state === 'waiting' ? 0.65 : 1.0; ctx.drawImage(bgCacheCanvas, 0, 0); ctx.globalAlpha = 1.0;
+    ctx.globalAlpha = this.state === 'waiting' ? 0.65 : 1.0;
+    ctx.drawImage(bgCacheCanvas, 0, 0, GW, GH);
+    ctx.globalAlpha = 1.0;
+
     for (const p of this.pipePool) {
       if (!p.active) continue;
       ctx.fillStyle = '#22b422'; if (p.topH > 0) ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topH); if (p.botY < GH) ctx.fillRect(p.x, p.botY, PIPE_WIDTH, GH - p.botY);
       ctx.fillStyle = '#127812'; if (p.topH > 0) ctx.fillRect(p.x-10, p.topH - 28, PIPE_WIDTH+20, 28); if (p.botY < GH) ctx.fillRect(p.x-10, p.botY, PIPE_WIDTH+20, 28);
       if (collectImg && !p.collected) ctx.drawImage(collectImg, p.x+PIPE_WIDTH/2-COL_W/2, (p.topH+p.botY)/2-collectH/2, COL_W, collectH);
     }
+
     if (this.state !== 'waiting' && (!SessionState.flashUntil || ((performance.now() / 150) | 0) % 2 === 0)) drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
     updateHUD(this.score);
+
     if (this.state === 'waiting') {
-      if (!uiCacheReady) buildUICache(); ctx.drawImage(uiCacheCanvas, 0, 0);
+      if (!uiCacheReady) buildUICache();
+      ctx.drawImage(uiCacheCanvas, 0, 0, GW, GH);
       drawBirdAt(GW/2 - BIRD_SIZE/2, GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12, 0);
       if (((performance.now() / 600) | 0) % 2 === 0) txt(ctx, 'Tap lub SPACJA aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
     } else if (this.state === 'gameover') {
-      overlay(0.62); txt(ctx, 'GAME OVER', GW/2, 72, 'bold 44px Arial', '#dc3232'); txt(ctx, 'Score: '+this.score, GW/2, 108, 'bold 26px Arial', '#ffd700');
+      overlay(0.62);
+      txt(ctx, 'GAME OVER', GW/2 + 2, 74, '900 44px Arial', '#000');
+      txt(ctx, 'GAME OVER', GW/2, 72, '900 44px Arial', '#dc3232');
+      txt(ctx, 'Score: '+this.score, GW/2 + 2, 110, 'bold 26px Arial', '#000');
+      txt(ctx, 'Score: '+this.score, GW/2, 108, 'bold 26px Arial', '#ffd700');
       ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(20,122); ctx.lineTo(GW-20,122); ctx.stroke();
       txt(ctx, '\uD83C\uDFC6 TOP 10', GW/2, 138, 'bold 15px Arial', '#ffd700');
-      if (leaderboardLoading) txt(ctx, 'Ładowanie...', GW/2, 160, '13px Arial', '#888'); else if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, 138);
+
+      if (leaderboardLoading) txt(ctx, 'Ładowanie...', GW/2, 160, '13px Arial', '#888');
+      else if (lbCacheReady) ctx.drawImage(lbCacheCanvas, 0, 138, GW, 300);
+
       ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
+
+      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
-      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, 402, '15px Arial', '#fff');
+
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, LOBBY_BTN.y - 20, '15px Arial', '#fff');
     }
   },
   onAction(px, py) {
@@ -252,11 +292,6 @@ export const FlappyMode = {
 };
 
 // ── Tryb Spikes ───────────────────────────────────────────────────────────────
-const spikeLeftCanvas = document.createElement('canvas'); spikeLeftCanvas.width = 24; spikeLeftCanvas.height = 32;
-spikeLeftCanvas.getContext('2d').fillStyle = '#888'; spikeLeftCanvas.getContext('2d').beginPath(); spikeLeftCanvas.getContext('2d').moveTo(0,0); spikeLeftCanvas.getContext('2d').lineTo(24,16); spikeLeftCanvas.getContext('2d').lineTo(0,32); spikeLeftCanvas.getContext('2d').fill();
-const spikeRightCanvas = document.createElement('canvas'); spikeRightCanvas.width = 24; spikeRightCanvas.height = 32;
-spikeRightCanvas.getContext('2d').fillStyle = '#888'; spikeRightCanvas.getContext('2d').beginPath(); spikeRightCanvas.getContext('2d').moveTo(24,0); spikeRightCanvas.getContext('2d').lineTo(0,16); spikeRightCanvas.getContext('2d').lineTo(24,32); spikeRightCanvas.getContext('2d').fill();
-
 export const SpikesMode = {
   state: 'waiting', score: 0, gameOverAt: 0, spikesLeft: [], spikesRight: [], maxSpikes: 3, _secArray: [0,1,2,3,4,5,6,7,8,9,10,11],
   bird: {
@@ -332,34 +367,46 @@ export const SpikesMode = {
     this.generateSpikes(nextWall); if (nextWall === 'right') this.spikesLeft.length = 0; else this.spikesRight.length = 0;
   },
   draw() {
-    ctx.globalAlpha = this.state === 'waiting' ? 0.65 : 1.0; ctx.drawImage(bgCacheCanvas, 0, 0); ctx.globalAlpha = 1.0;
-    this.spikesLeft.forEach(sp => ctx.drawImage(spikeLeftCanvas, 0, sp.y - 16));
-    this.spikesRight.forEach(sp => ctx.drawImage(spikeRightCanvas, GW - 24, sp.y - 16));
+    ctx.globalAlpha = this.state === 'waiting' ? 0.65 : 1.0;
+    ctx.drawImage(bgCacheCanvas, 0, 0, GW, GH);
+    ctx.globalAlpha = 1.0;
+
+    this.spikesLeft.forEach(sp => ctx.drawImage(spikeLeftCanvas, 0, sp.y - 16, 24, 32));
+    this.spikesRight.forEach(sp => ctx.drawImage(spikeRightCanvas, GW - 24, sp.y - 16, 24, 32));
+
     if (this.state !== 'waiting' && playerImg && (!SessionState.flashUntil || ((performance.now() / 150) | 0) % 2 === 0)) {
       ctx.save(); ctx.translate(this.bird.x + BIRD_SIZE/2, this.bird.y + BIRD_SIZE/2); if (this.bird.vx < 0) ctx.scale(-1, 1);
       ctx.rotate(Math.max(-20, Math.min(20, this.bird.vy * 2)) * Math.PI / 180); ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE); ctx.restore();
     }
     updateHUD(this.score);
+
     if (this.state === 'waiting') {
-      txt(ctx, 'SPIKES MODE', GW/2, GH/4+10, 'bold 48px Arial', '#dc3232');
+      txt(ctx, 'SPIKES MODE', GW/2 + 2, GH/4+12, '900 44px Arial', '#000');
+      txt(ctx, 'SPIKES MODE', GW/2, GH/4+10, '900 44px Arial', '#dc3232');
       drawBirdAt(GW/2 - BIRD_SIZE/2, GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12, 0);
       if (((performance.now() / 600) | 0) % 2 === 0) txt(ctx, 'Tapnij aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
+
+      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
     } else if (this.state === 'gameover') {
       overlay(0.75);
-      txt(ctx, 'ZGINĄŁEŚ', GW/2, 60, 'bold 44px Arial', '#dc3232');
+      txt(ctx, 'ZGINĄŁEŚ', GW/2 + 2, 62, '900 44px Arial', '#000');
+      txt(ctx, 'ZGINĄŁEŚ', GW/2, 60, '900 44px Arial', '#dc3232');
+      txt(ctx, 'Wynik: '+this.score, GW/2 + 2, 97, 'bold 26px Arial', '#000');
       txt(ctx, 'Wynik: '+this.score, GW/2, 95, 'bold 26px Arial', '#ffd700');
       txt(ctx, 'Rekord: '+PlayerState.spikesBestScore, GW/2, 115, '14px Arial', '#aaa');
 
-      // Sekcja tablicy
       ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(20,130); ctx.lineTo(GW-20,130); ctx.stroke();
       txt(ctx, '🔥 TOP 10 KOLCÓW', GW/2, 150, 'bold 15px Arial', '#dc3232');
-      if (spikesLbLoading) txt(ctx, 'Ładowanie...', GW/2, 175, '13px Arial', '#888'); else if (spikesLbReady) ctx.drawImage(spikesLbCacheCanvas, 0, 150);
 
+      if (spikesLbLoading) txt(ctx, 'Ładowanie...', GW/2, 175, '13px Arial', '#888');
+      else if (spikesLbReady) ctx.drawImage(spikesLbCacheCanvas, 0, 150, GW, 300);
+
+      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
-      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, GH*2/3 + 60, '15px Arial', '#fff');
+      if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, LOBBY_BTN.y - 20, '15px Arial', '#fff');
     }
   },
   onAction(px, py) {
@@ -689,6 +736,7 @@ export const SkiJumpMode = {
       txt(ctx, `NOTA ŁĄCZNA: ${this.totalScore} pkt`, GW/2, GH/2 + 80, 'bold 22px Arial', '#ffd700');
       txt(ctx, `Rekord życiowy: ${PlayerState.skiBestScore} pkt`, GW/2, GH/2 + 105, '14px Arial', '#aaa');
 
+      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(10, GH - 80 + 5, 110, 64, 12); ctx.fill();
       ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(10, GH - 80, 110, 64, 12); ctx.fill();
       txt(ctx, '🏠 LOBBY', 10 + 55, GH - 80 + 39, 'bold 16px Arial', '#fff');
       if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij by skoczyć ponownie', GW/2, GH - 40, '15px Arial', '#fff');
@@ -739,6 +787,7 @@ let lastTime = performance.now(), loopRunning = false;
 function loop(now) {
   if (!loopRunning) return; requestAnimationFrame(loop);
   let dt = now - lastTime; lastTime = now; if (dt > 50) dt = 50;
+  if (SessionState.flashUntil && now > SessionState.flashUntil) SessionState.flashUntil = 0;
   if (isGameCanvasVisible) { SceneManager.update(dt); SceneManager.draw(); }
 }
 function startGameLoop() { if (loopRunning) return; loopRunning = true; lastTime = performance.now(); requestAnimationFrame(loop); }

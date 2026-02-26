@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v12';
+const CACHE_NAME = 'bobby-bird-v14';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -63,6 +63,7 @@ const ASSETS_TO_CACHE = [
   './assets/sounds/wyladowal.mp3',
   './assets/sounds/brawo.mp3',
 
+  './assets/icons/playboy_back.jpg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];
@@ -85,6 +86,16 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+
+  // FILTR BEZPIECZEŃSTWA: Ignorujemy wszystko co nie jest GET (np. POST z Socket.io/Firebase)
+  if (req.method !== 'GET') {
+    return;
+  }
+
+  // FILTR HETZNER/FIREBASE: Ignorujemy zapytania do Socket.io i Google APIs
+  if (req.url.includes(':3000') || req.url.includes('googleapis')) {
+    return;
+  }
 
   // TARCZA NA iOS SAFARI: Jeśli przeglądarka prosi o kawałek pliku audio/video (Range),
   // całkowicie omijamy Service Workera i pozwalamy serwerowi na bezpośrednią obsługę.
@@ -111,10 +122,12 @@ self.addEventListener('fetch', (event) => {
   // KOD GRY Z SIECI
   event.respondWith(
     fetch(req).then((res) => {
-      return caches.open(CACHE_NAME).then((cache) => {
-        cache.put(req, res.clone());
-        return res;
+      // Klonujemy odpowiedź synchronicznie, zanim powróci do przeglądarki
+      const resToCache = res.clone();
+      caches.open(CACHE_NAME).then((cache) => {
+        cache.put(req, resToCache);
       });
+      return res;
     }).catch(() => {
       return caches.match(req);
     })
