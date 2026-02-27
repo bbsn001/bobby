@@ -32,7 +32,7 @@ function playPokerSound(type) {
   } catch(e) {}
 }
 
-let socket = null;
+export let socket = null;
 export let PokerBetState = { minRaise: 0, maxRaise: 0, pot: 0 };
 
 let lastPot = 0;

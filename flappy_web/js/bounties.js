@@ -2,6 +2,7 @@
 import { PlayerState } from './state.js';
 import { fetchActiveBounties, createBountyInDb, removeBountyFromDb, saveProgress, getAllPlayerNicks, syncPlayerState } from './firebase.js';
 import { showLobby, showBounties, updateHUD } from './ui.js';
+import { socket, connectToCasino } from './poker.js';
 
 const bountiesList = document.getElementById('bountiesList');
 const btnShowBountyForm = document.getElementById('btnShowBountyForm');
@@ -72,21 +73,32 @@ export async function loadAndRenderBounties() {
 
     card.innerHTML = html;
     bountiesList.appendChild(card);
-  });
 
-  // Podpięcie eventów (Zgarniaj)
-  bountiesList.querySelectorAll('button[data-claim]').forEach(btn => {
-    btn.onclick = async () => {
-      btn.disabled = true; btn.textContent = '...';
-      const id = btn.getAttribute('data-claim');
-      const rew = parseInt(btn.getAttribute('data-reward'));
+    const claimBtn = card.querySelector('[data-claim]');
+    if (claimBtn) {
+      claimBtn.onclick = async () => {
+        if (!socket || !socket.connected) {
+          connectToCasino();
+          return alert('Łączenie z serwerem weryfikacyjnym... Kliknij jeszcze raz za sekundę.');
+        }
+        claimBtn.disabled = true;
+        claimBtn.textContent = 'Weryfikacja...';
 
-      PlayerState.coins += rew;
-      await removeBountyFromDb(id);
-      await saveProgress(true);
-      updateHUD(PlayerState.bestScore);
-      loadAndRenderBounties();
-    };
+        socket.emit('claim_bounty', { bountyId: b.id, claimantNick: PlayerState.nick }, async (res) => {
+          if (res.error) {
+            alert('Odrzucono: ' + res.error);
+            claimBtn.textContent = 'BŁĄD WERYFIKACJI';
+            claimBtn.disabled = false;
+          } else {
+            PlayerState.coins += res.reward;
+            await saveProgress(true);
+            updateHUD(PlayerState.bestScore);
+            claimBtn.textContent = 'NAGRODA ODEBRANA!';
+            setTimeout(loadAndRenderBounties, 1500);
+          }
+        });
+      };
+    }
   });
 
   // Podpięcie eventów (Anuluj)
@@ -124,27 +136,35 @@ document.getElementById('btnSubmitBounty').addEventListener('click', async () =>
     bountyError.textContent = 'Nie stać Cię na taki kontrakt biedaku.'; bountyError.style.display = 'block'; return;
   }
 
+  if (!socket || !socket.connected) {
+    bountyError.textContent = 'Brak połączenia z serwerem. Zaloguj się.';
+    bountyError.style.display = 'block';
+    return;
+  }
   bountyError.style.display = 'none';
   document.getElementById('btnSubmitBounty').disabled = true;
 
-  PlayerState.coins -= reward;
-  await saveProgress(true);
-  updateHUD(PlayerState.bestScore);
-
-  const success = await createBountyInDb(victim, score, reward, mode); // <-- Przekazujemy TRYB
-
-  if (success) {
-    vNick.value = ''; vScore.value = ''; vReward.value = '';
-    bountyForm.style.display = 'none';
-    btnShowBountyForm.style.display = 'block';
-    loadAndRenderBounties();
-  } else {
-    PlayerState.coins += reward;
-    await saveProgress(true);
-    updateHUD(PlayerState.bestScore);
-    bountyError.textContent = 'Błąd serwera. Hajs zwrócony.'; bountyError.style.display = 'block';
-  }
-  document.getElementById('btnSubmitBounty').disabled = false;
+  socket.emit('create_bounty', {
+    creatorNick: PlayerState.nick,
+    victimNick: victim,
+    mode: mode,
+    targetScore: score,
+    reward: reward
+  }, async (res) => {
+    if (res.error) {
+      bountyError.textContent = res.error;
+      bountyError.style.display = 'block';
+    } else {
+      PlayerState.coins -= reward;
+      await saveProgress(true);
+      updateHUD(PlayerState.bestScore);
+      vNick.value = ''; vScore.value = ''; vReward.value = '';
+      bountyForm.style.display = 'none';
+      btnShowBountyForm.style.display = 'block';
+      loadAndRenderBounties();
+    }
+    document.getElementById('btnSubmitBounty').disabled = false;
+  });
 });
 
 // ── Bindowanie Głównego UI ────────────────────────────────────────────────────
