@@ -1,8 +1,7 @@
 // js/bounties.js
-import { EventEmitter } from './events.js';
 import { PlayerState } from './state.js';
-import { getAllPlayerNicks } from './firebase.js';
-import { socket } from './poker.js';
+import { fetchActiveBounties, createBountyInDb, removeBountyFromDb, saveProgress, getAllPlayerNicks, syncPlayerState } from './firebase.js';
+import { showLobby, showBounties, updateHUD } from './ui.js';
 
 const bountiesList = document.getElementById('bountiesList');
 const btnShowBountyForm = document.getElementById('btnShowBountyForm');
@@ -14,92 +13,147 @@ const vMode = document.getElementById('bountyMode');
 const vScore = document.getElementById('bountyScore');
 const vReward = document.getElementById('bountyReward');
 
-// ── REAKTYWNY NASŁUCH ZDARZEŃ (Inwersja Kontroli) ─────────────────────────────
-EventEmitter.on('BOUNTIES_UPDATED', (bountiesArray) => {
-  renderBountiesList(bountiesArray);
-});
+let isFetching = false;
 
-EventEmitter.on('UI_NAVIGATE', (payload) => {
-  // Resetujemy formularz przy wejściu w widok
-  if (payload.screen === 'bounties') {
-    bountyForm.style.display = 'none';
-    btnShowBountyForm.style.display = 'block';
-    bountyError.style.display = 'none';
-  }
-});
+// ── Renderowanie Tablicy ──────────────────────────────────────────────────────
+export async function loadAndRenderBounties() {
+  if (isFetching) return;
+  isFetching = true;
+  bountiesList.innerHTML = '<div style="color:#8be; text-align:center;">Skanowanie satelitarne...</div>';
 
-// ── RENDEROWANIE WIDOKU ───────────────────────────────────────────────────────
-function renderBountiesList(list) {
+  // NOWOŚĆ: Bezwzględna synchronizacja z bazą przed wyświetleniem zleceń
+  await syncPlayerState();
+
+  const list = await fetchActiveBounties();
   bountiesList.innerHTML = '';
 
   if (list.length === 0) {
     bountiesList.innerHTML = '<div style="color:#666; text-align:center;">Nikt nie ma kosy. Cicho tu.</div>';
-    return;
+    isFetching = false; return;
   }
 
   list.forEach(b => {
-    const isMe = b.victim.toLowerCase() === PlayerState.nick.toLowerCase();
-    const div = document.createElement('div');
-    div.style.cssText = `background:#0f1432; border:1px solid ${isMe ? '#dc3232' : '#333'}; border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px;`;
+    const isMeVictim = b.victim.toLowerCase() === PlayerState.nick.toLowerCase();
+    const isMeCreator = b.creator === PlayerState.nick;
 
-    const modeLabels = { flappy: '🐦 Klasyk', spikes: '🔥 Kolce', ski: '🏔️ Skoki', poker: '🎰 Kasyno' };
-    const mLabel = modeLabels[b.mode] || b.mode;
+    // NOWOŚĆ: Uniwersalny System Weryfikacji Trybów
+    const mode = b.mode || 'flappy'; // Zabezpieczenie starych kontraktów
+    let currentVal = 0;
+    let modeLabel = '';
+    let scoreSuffix = 'pkt';
+
+    if (mode === 'flappy') { currentVal = PlayerState.bestScore; modeLabel = '🐦 KLASYK'; }
+    else if (mode === 'spikes') { currentVal = PlayerState.spikesBestScore; modeLabel = '🔥 KOLCE'; }
+    else if (mode === 'ski') { currentVal = PlayerState.skiBestScore; modeLabel = '🏔️ SKOKI'; }
+    else if (mode === 'poker') { currentVal = PlayerState.pokerNetProfit; modeLabel = '🎰 KASYNO'; scoreSuffix = 'z na plusie'; }
+
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#0f1432; border:1px solid #333; border-radius:8px; padding:10px; text-align:left; position:relative;';
 
     let html = `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="color:#fff; font-weight:bold; font-size:1.1rem;">CEL: <span style="color:${isMe ? '#dc3232' : '#ffd700'}">${b.victim}</span></span>
-        <span style="color:#8be; font-size:0.8rem;">Zleca: ${b.creator}</span>
-      </div>
-      <div style="color:#aaa; font-size:0.85rem; display:flex; justify-content:space-between;">
-        <span>Tryb: <span style="color:#fff">${mLabel}</span></span>
-        <span>Wymaga: <span style="color:#fff">${b.targetScore}</span></span>
-      </div>
-      <div style="color:#ffd700; font-weight:bold; font-size:1rem; text-align:center; margin-top:4px;">NAGRODA: 🎵 ${b.reward}</div>
+      <div style="font-size:0.75rem; color:#888;">Zleceniodawca: <span style="color:#fff">${b.creator}</span></div>
+      <div style="font-size:0.9rem; color:#aaa; margin-top:4px;">Ofiara: <span style="color:#dc3232; font-weight:bold;">${b.victim}</span></div>
+      <div style="font-size:0.85rem; color:#ffd700; margin-top:4px;">Tryb: <span style="color:#fff;">${modeLabel}</span></div>
+      <div style="font-size:0.85rem; color:#ffd700; margin-top:4px;">Wymóg: <span style="color:#fff; font-weight:bold;">Wbij ${b.targetScore} ${scoreSuffix}</span></div>
+      <div style="font-size:0.85rem; color:#22b422; margin-top:4px;">Nagroda: <span style="font-weight:bold;">\uD83C\uDFB5 ${b.reward}</span></div>
     `;
 
-    if (isMe) {
-      // Przygotowujemy nasz aktualny wynik w danym trybie dla celów wizualnych
-      let currentBest = 0;
-      if (b.mode === 'flappy') currentBest = PlayerState.bestScore;
-      else if (b.mode === 'spikes') currentBest = PlayerState.spikesBestScore;
-      else if (b.mode === 'ski') currentBest = PlayerState.skiBestScore;
-      else if (b.mode === 'poker') currentBest = PlayerState.pokerNetProfit;
-
-      const progressColor = currentBest >= b.targetScore ? '#22b422' : '#dc3232';
-      html += `<div style="text-align:center; font-size:0.8rem; color:${progressColor}; margin-bottom:5px;">Twój rekord: ${currentBest} / ${b.targetScore}</div>`;
-
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-yellow btn-sm';
-      btn.style.width = '100%'; btn.style.height = '35px';
-      btn.textContent = currentBest >= b.targetScore ? 'ZGARNIJ NAGRODĘ' : 'WYNIK ZA SŁABY';
-      btn.disabled = currentBest < b.targetScore;
-
-      // LOGIKA ODBIORU (Transakcja Backendowa przez Socket)
-      btn.onclick = () => {
-        btn.disabled = true;
-        btn.textContent = 'Autoryzacja...';
-        socket.emit('claim_bounty', { bountyId: b.id, claimantNick: PlayerState.nick }, (res) => {
-          if (res.error) {
-            alert('Odrzucono: ' + res.error);
-            btn.textContent = 'BŁĄD WERYFIKACJI';
-          } else {
-            PlayerState.coins += res.reward; // Proxy odświeży UI automatycznie!
-            btn.textContent = 'NAGRODA ODEBRANA!';
-          }
-        });
-      };
-
-      div.innerHTML = html;
-      div.appendChild(btn);
-    } else {
-      div.innerHTML = html;
+    // Logika przycisków akcji
+    if (isMeVictim) {
+      const canClaim = currentVal >= b.targetScore;
+      if (canClaim) {
+        html += `<button class="btn btn-sm" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:#22b422; color:#fff;" data-claim="${b.id}" data-reward="${b.reward}">ZGARNIJ</button>`;
+      } else {
+        html += `<div style="position:absolute; right:10px; top:50%; transform:translateY(-50%); color:#666; font-size:0.75rem; text-align:center;">Twój stan:<br><span style="color:#fff; font-weight:bold;">${currentVal}</span></div>`;
+      }
+    } else if (isMeCreator) {
+      html += `<button class="btn btn-sm btn-dark" style="position:absolute; right:10px; top:50%; transform:translateY(-50%);" data-cancel="${b.id}" data-reward="${b.reward}">ANULUJ</button>`;
     }
 
-    bountiesList.appendChild(div);
+    card.innerHTML = html;
+    bountiesList.appendChild(card);
   });
+
+  // Podpięcie eventów (Zgarniaj)
+  bountiesList.querySelectorAll('button[data-claim]').forEach(btn => {
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = '...';
+      const id = btn.getAttribute('data-claim');
+      const rew = parseInt(btn.getAttribute('data-reward'));
+
+      PlayerState.coins += rew;
+      await removeBountyFromDb(id);
+      await saveProgress(true);
+      updateHUD(PlayerState.bestScore);
+      loadAndRenderBounties();
+    };
+  });
+
+  // Podpięcie eventów (Anuluj)
+  bountiesList.querySelectorAll('button[data-cancel]').forEach(btn => {
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = '...';
+      const id = btn.getAttribute('data-cancel');
+      const rew = parseInt(btn.getAttribute('data-reward'));
+
+      PlayerState.coins += rew; // Zwrot kasy
+      await removeBountyFromDb(id);
+      await saveProgress(true);
+      updateHUD(PlayerState.bestScore);
+      loadAndRenderBounties();
+    };
+  });
+
+  isFetching = false;
 }
 
-// ── LOGIKA TWORZENIA ZLECENIA ─────────────────────────────────────────────────
+// ── Tworzenie Zlecenia ────────────────────────────────────────────────────────
+document.getElementById('btnSubmitBounty').addEventListener('click', async () => {
+  const victim = vNick.value.trim();
+  const mode = vMode.value; // Pobieramy wybrany tryb
+  const score = parseInt(vScore.value);
+  const reward = parseInt(vReward.value);
+
+  if (!victim || !score || !reward || score <= 0 || reward <= 0) {
+    bountyError.textContent = 'Wypełnij to porządnie!'; bountyError.style.display = 'block'; return;
+  }
+  if (victim.toLowerCase() === PlayerState.nick.toLowerCase()) {
+    bountyError.textContent = 'Nie możesz wycenić własnej głowy!'; bountyError.style.display = 'block'; return;
+  }
+  if (PlayerState.coins < reward) {
+    bountyError.textContent = 'Nie stać Cię na taki kontrakt biedaku.'; bountyError.style.display = 'block'; return;
+  }
+
+  bountyError.style.display = 'none';
+  document.getElementById('btnSubmitBounty').disabled = true;
+
+  PlayerState.coins -= reward;
+  await saveProgress(true);
+  updateHUD(PlayerState.bestScore);
+
+  const success = await createBountyInDb(victim, score, reward, mode); // <-- Przekazujemy TRYB
+
+  if (success) {
+    vNick.value = ''; vScore.value = ''; vReward.value = '';
+    bountyForm.style.display = 'none';
+    btnShowBountyForm.style.display = 'block';
+    loadAndRenderBounties();
+  } else {
+    PlayerState.coins += reward;
+    await saveProgress(true);
+    updateHUD(PlayerState.bestScore);
+    bountyError.textContent = 'Błąd serwera. Hajs zwrócony.'; bountyError.style.display = 'block';
+  }
+  document.getElementById('btnSubmitBounty').disabled = false;
+});
+
+// ── Bindowanie Głównego UI ────────────────────────────────────────────────────
+document.getElementById('lobbyBounties').addEventListener('click', () => {
+  showBounties();
+  loadAndRenderBounties();
+});
+document.getElementById('bountiesBack').addEventListener('click', showLobby);
+
 btnShowBountyForm.addEventListener('click', async () => {
   btnShowBountyForm.disabled = true;
   btnShowBountyForm.textContent = 'Szukanie ofiar w okolicy...';
@@ -114,44 +168,8 @@ btnShowBountyForm.addEventListener('click', async () => {
     }
   });
 
+  btnShowBountyForm.textContent = '➕ WYCEŃ CZYJĄŚ GŁOWĘ';
+  btnShowBountyForm.disabled = false;
   btnShowBountyForm.style.display = 'none';
   bountyForm.style.display = 'block';
-  btnShowBountyForm.disabled = false;
-  btnShowBountyForm.textContent = '➕ WYCEŃ CZYJĄŚ GŁOWĘ';
-});
-
-document.getElementById('btnSubmitBounty').addEventListener('click', async () => {
-  const victim = vNick.value;
-  const mode = vMode.value;
-  const score = parseInt(vScore.value);
-  const reward = parseInt(vReward.value);
-
-  if (!victim || isNaN(score) || score <= 0 || isNaN(reward) || reward <= 0) {
-    bountyError.textContent = 'Wypełnij poprawnie wszystkie pola!';
-    bountyError.style.display = 'block';
-    return;
-  }
-  if (reward > PlayerState.coins) {
-    bountyError.textContent = 'Jesteś spłukany! Nie stać Cię na zlecenie.';
-    bountyError.style.display = 'block';
-    return;
-  }
-
-  bountyError.style.display = 'none';
-  document.getElementById('btnSubmitBounty').disabled = true;
-
-  socket.emit('create_bounty', {
-    creatorNick: PlayerState.nick, victimNick: victim, mode, targetScore: score, reward
-  }, (res) => {
-    if (res.error) {
-      bountyError.textContent = res.error;
-      bountyError.style.display = 'block';
-    } else {
-      PlayerState.coins -= reward; // Proxy odświeży UI automatycznie!
-      vNick.value = ''; vScore.value = ''; vReward.value = '';
-      bountyForm.style.display = 'none';
-      btnShowBountyForm.style.display = 'block';
-    }
-    document.getElementById('btnSubmitBounty').disabled = false;
-  });
 });

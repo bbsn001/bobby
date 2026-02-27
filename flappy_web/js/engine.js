@@ -1,15 +1,15 @@
 // js/engine.js
-import { EventEmitter } from './events.js';
 import { GAME_CONFIG, CHARACTERS } from './config.js';
 import { PlayerState, SessionState } from './state.js';
 import { startMusic, stopMusic, startSpikesAudio, stopSpikesAudio, resumeMusic, resumeSpikesAudio, playSound, playSpecialSound, audioCtx, startWind, updateWind, stopWind } from './audio.js';
+import { updateHUD, hideAll, showLobby, showShop, setShopFromWaiting } from './ui.js';
 import { saveProgress, getTopScores, getSpikesTopScores } from './firebase.js';
 
 const { GW, GH, GRAVITY, JUMP_FORCE, PIPE_SPEED, PIPE_WIDTH, BIRD_SIZE, COL_W } = GAME_CONFIG;
 
 // ── Canvas & Setup ────────────────────────────────────────────────────────────
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+export const canvas = document.getElementById('gameCanvas');
+export const ctx = canvas.getContext('2d');
 const isMobile = window.innerWidth < 600;
 const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
 canvas.width = Math.round(GW * dpr);
@@ -26,39 +26,16 @@ window.addEventListener('resize', () => {
 window.dispatchEvent(new Event('resize'));
 
 let isGameCanvasVisible = false;
-
-// ── Event Bus (Nasłuchiwanie) ─────────────────────────────────────────────────
-EventEmitter.on('UI_NAVIGATE', (payload) => {
-  if (payload.screen === 'game') {
-    isGameCanvasVisible = true;
-    window.dispatchEvent(new Event('resize'));
-    startGameLoop();
-  } else {
-    isGameCanvasVisible = false;
-  }
-});
-
-let gameStartGuard = false;
-EventEmitter.on('GAME_START', async (mode) => {
-  if (gameStartGuard) return;
-  gameStartGuard = true;
-  computeSessionParams();
-  await applyActiveSkin(PlayerState.activeSkin);
-
-  if (mode === 'flappy') SceneManager.changeScene(FlappyMode);
-  else if (mode === 'spikes') SceneManager.changeScene(SpikesMode);
-  else if (mode === 'ski') SceneManager.changeScene(SkiJumpMode);
-
-  EventEmitter.emit('UI_NAVIGATE', { screen: 'game' });
-  setTimeout(() => { gameStartGuard = false; }, 500);
-});
-
-EventEmitter.on('PLAYER_SKIN_UPDATED', (key) => {
-  applyActiveSkin(key); // Wczytuje grafikę do cache w tle po zakupie
-});
+export function showGame() {
+  hideAll();
+  canvas.style.display = document.getElementById('hud').style.display = 'block';
+  isGameCanvasVisible = true;
+  window.dispatchEvent(new Event('resize'));
+  startGameLoop();
+}
 
 // ── Obliczenia Sesji ──────────────────────────────────────────────────────────
-function computeSessionParams() {
+export function computeSessionParams() {
   const b = CHARACTERS[PlayerState.activeSkin].bonuses;
   SessionState.S_GAP = GAME_CONFIG.PIPE_GAP + (b.includes('gap+30') ? 30 : b.includes('gap+20') ? 20 : b.includes('gap+10') ? 10 : 0);
   SessionState.S_SPEED = GAME_CONFIG.PIPE_SPEED * (b.includes('speed-15') ? 0.85 : b.includes('speed-10') ? 0.90 : b.includes('speed-5') ? 0.95 : 1);
@@ -80,7 +57,7 @@ function loadImage(src) {
   });
 }
 
-async function applyActiveSkin(key) {
+export async function applyActiveSkin(key) {
   const ch = CHARACTERS[key];
   if (!spriteCache[key]) spriteCache[key] = await loadImage(`assets/characters/${ch.img || key+'.png'}`);
   if (!collectCache[key]) {
@@ -116,26 +93,31 @@ const { cvs: uiCacheCanvas, cx: uctx } = createHiResCache(GW, GH);
 
 function buildUICache() {
   uctx.clearRect(0, 0, GW, GH);
+  // Tytuł z cieniem 3D
   uctx.textAlign = 'center'; uctx.font = '900 52px Arial';
   uctx.fillStyle = '#0f1432'; uctx.fillText('Bobby Bird', GW/2 + 4, GH/4 + 14);
   uctx.fillStyle = '#ffd700'; uctx.fillText('Bobby Bird', GW/2, GH/4 + 10);
 
+  // Przycisk SKLEP (Z efektem wciśnięcia 3D)
   uctx.fillStyle = '#0a0a22'; uctx.beginPath(); uctx.roundRect(SHOP_BTN.x, SHOP_BTN.y + 5, SHOP_BTN.w, SHOP_BTN.h, 12); uctx.fill();
   uctx.fillStyle = '#1a6aff'; uctx.beginPath(); uctx.roundRect(SHOP_BTN.x, SHOP_BTN.y, SHOP_BTN.w, SHOP_BTN.h, 12); uctx.fill();
   uctx.font = 'bold 18px Arial'; uctx.fillStyle = '#fff'; uctx.fillText('🛒 SKLEP', SHOP_BTN.x + SHOP_BTN.w/2, SHOP_BTN.y + SHOP_BTN.h/2 + 7);
 
+  // Przycisk LOBBY (Z efektem wciśnięcia 3D)
   uctx.fillStyle = '#0a0a22'; uctx.beginPath(); uctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); uctx.fill();
   uctx.fillStyle = '#dc3232'; uctx.beginPath(); uctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); uctx.fill();
   uctx.font = 'bold 16px Arial'; uctx.fillText('🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7);
   uiCacheReady = true;
 }
 
+// Zmienne Tablicowe (Teraz na High-Res)
 let leaderboard = [], leaderboardLoading = false, lbCacheReady = false, cachedLeaderboard = [], lastLeaderboardFetch = 0;
 const { cvs: lbCacheCanvas, cx: lbCtx } = createHiResCache(GW, 300);
 
 let spikesLeaderboard = [], spikesLbLoading = false, spikesLbReady = false, spikesCachedLb = [], lastSpikesLbFetch = 0;
 const { cvs: spikesLbCacheCanvas, cx: spikesLbCtx } = createHiResCache(GW, 300);
 
+// Pamięć podręczna dla kolców
 const { cvs: spikeLeftCanvas, cx: spikeLeftCtx } = createHiResCache(24, 32);
 spikeLeftCtx.fillStyle = '#888'; spikeLeftCtx.beginPath(); spikeLeftCtx.moveTo(0,0); spikeLeftCtx.lineTo(24,16); spikeLeftCtx.lineTo(0,32); spikeLeftCtx.fill();
 
@@ -153,8 +135,12 @@ function overlapsSpike(br, spY, side) {
   return (br.y <= spY + allY && br.y + br.h >= spY - allY);
 }
 
+// Bezpieczna wersja funkcji renderującej bez wycieków stanu
 function txt(context, str, x, y, font, color, align = 'center') {
-  context.font = font; context.fillStyle = color; context.textAlign = align; context.fillText(str, x, y);
+  context.font = font;
+  context.fillStyle = color;
+  context.textAlign = align;
+  context.fillText(str, x, y);
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
 function drawBirdAt(x, y, angle) {
@@ -164,7 +150,7 @@ function drawBirdAt(x, y, angle) {
 }
 
 // ── Maszyna Stanów ────────────────────────────────────────────────────────────
-const SceneManager = {
+export const SceneManager = {
   activeScene: null,
   changeScene(newScene) {
     stopMusic(); stopSpikesAudio();
@@ -181,7 +167,7 @@ const _cr = { x: 0, y: 0, w: 0, h: 0 };
 const _pr = { x: 0, y: 0, w: 0, h: 0 };
 
 // ── Tryb Flappy ───────────────────────────────────────────────────────────────
-const FlappyMode = {
+export const FlappyMode = {
   state: 'waiting', score: 0, pipeTimer: 0, gameOverAt: 0,
   pipePool: Array.from({ length: 6 }, () => ({ active: false, x: 0, topH: 0, botY: 0, passed: false, collected: false })),
   bird: {
@@ -190,7 +176,7 @@ const FlappyMode = {
     update(dt) { const f = dt/16.667; this.vy += GRAVITY * f; this.y += this.vy * f + 0.5 * GRAVITY * f * f; },
     rect() { this._r.x = this.x + 15; this._r.y = this.y + 15; return this._r; }
   },
-  init() { this.resetState(); EventEmitter.emit('GAME_SCORE_UPDATE', this.score); },
+  init() { this.resetState(); updateHUD(this.score); },
   resetState() {
     this.bird.x = 80; this.bird.y = GH/2; this.bird.vy = 0;
     this.pipePool.forEach(p => p.active = false);
@@ -240,10 +226,7 @@ const FlappyMode = {
         if (overlaps(br, _cr)) {
           p.collected = true;
           const pts = SessionState.S_DOUBLE ? 2 : 1;
-          this.score += pts;
-          PlayerState.coins += pts; // To wyzwala Event Busa dla HUD w ui.js!
-          EventEmitter.emit('GAME_SCORE_UPDATE', this.score);
-
+          this.score += pts; PlayerState.coins += pts;
           const sfx = CHARACTERS[PlayerState.activeSkin].sfx || 'kaching';
           playSound(sfx, 0.5);
           playSpecialSound(this.score);
@@ -271,6 +254,7 @@ const FlappyMode = {
     }
 
     if (this.state !== 'waiting' && (!SessionState.flashUntil || ((performance.now() / 150) | 0) % 2 === 0)) drawBirdAt(this.bird.x, this.bird.y, Math.max(-35, Math.min(50, -this.bird.vy*3)));
+    updateHUD(this.score);
 
     if (this.state === 'waiting') {
       if (!uiCacheReady) buildUICache();
@@ -300,22 +284,15 @@ const FlappyMode = {
   },
   onAction(px, py) {
     if (px !== undefined) {
-      if (this.state === 'waiting' && px>=SHOP_BTN.x && px<=SHOP_BTN.x+SHOP_BTN.w && py>=SHOP_BTN.y && py<=SHOP_BTN.y+SHOP_BTN.h) {
-        EventEmitter.emit('UI_NAVIGATE', { screen: 'shop', returnTo: 'flappy' });
-        return;
-      }
-      if ((this.state === 'waiting' || this.state === 'gameover') && px>=LOBBY_BTN.x && px<=LOBBY_BTN.x+LOBBY_BTN.w && py>=LOBBY_BTN.y && py<=LOBBY_BTN.y+LOBBY_BTN.h) {
-        stopMusic();
-        EventEmitter.emit('UI_NAVIGATE', { screen: 'lobby' });
-        return;
-      }
+      if (this.state === 'waiting' && px>=SHOP_BTN.x && px<=SHOP_BTN.x+SHOP_BTN.w && py>=SHOP_BTN.y && py<=SHOP_BTN.y+SHOP_BTN.h) { setShopFromWaiting(true); showShop(); return; }
+      if ((this.state === 'waiting' || this.state === 'gameover') && px>=LOBBY_BTN.x && px<=LOBBY_BTN.x+LOBBY_BTN.w && py>=LOBBY_BTN.y && py<=LOBBY_BTN.y+LOBBY_BTN.h) { stopMusic(); showLobby(); return; }
     }
     if (this.state === 'waiting') this.startGame(); else if (this.state === 'playing') this.bird.jump(); else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
   }
 };
 
 // ── Tryb Spikes ───────────────────────────────────────────────────────────────
-const SpikesMode = {
+export const SpikesMode = {
   state: 'waiting', score: 0, gameOverAt: 0, spikesLeft: [], spikesRight: [], maxSpikes: 3, _secArray: [0,1,2,3,4,5,6,7,8,9,10,11],
   bird: {
     x: GW/2 - BIRD_SIZE/2, y: GH/2, vx: 4.5, vy: 0, _r: { x: 0, y: 0, w: BIRD_SIZE - 12, h: BIRD_SIZE - 12 },
@@ -323,11 +300,11 @@ const SpikesMode = {
     update(dt) { const f = dt/16.667; this.vy += GRAVITY * f; this.y += this.vy * f + 0.5 * GRAVITY * f * f; this.x += this.vx * f; },
     rect() { this._r.x = this.x + 6; this._r.y = this.y + 6; return this._r; }
   },
-  init() { this.resetState(); EventEmitter.emit('GAME_SCORE_UPDATE', this.score); },
+  init() { this.resetState(); updateHUD(this.score); },
   resetState() {
     this.bird.x = GW/2 - BIRD_SIZE/2; this.bird.y = GH/2; this.bird.vx = Math.random() > 0.5 ? 4.5 : -4.5; this.bird.vy = 0;
     this.score = 0; this.maxSpikes = 3; this.spikesLeft = []; this.spikesRight = [];
-    spikesLeaderboard = []; spikesLbLoading = false; spikesLbReady = false;
+    spikesLeaderboard = []; spikesLbLoading = false; spikesLbReady = false; // Reset GUI
     SessionState.extraLifeAvail = SessionState.S_EXTRA; SessionState.flashUntil = 0; this.state = 'waiting';
   },
   startGame() { this.state = 'playing'; this.bird.jump(); startSpikesAudio(); },
@@ -341,7 +318,7 @@ const SpikesMode = {
       const me = spikesCachedLb.find(e => e.nick === PlayerState.nick);
       if (me) me.spikesBestScore = this.score; else spikesCachedLb.push({ nick: PlayerState.nick, spikesBestScore: this.score });
       spikesCachedLb.sort((a,b) => b.spikesBestScore - a.spikesBestScore); spikesCachedLb = spikesCachedLb.slice(0, 10);
-      saveProgress(true);
+      saveProgress(true); // Ostre zapisanie przy pobiciu
     }
 
     if (performance.now() - lastSpikesLbFetch > 60000 || !spikesCachedLb.length) {
@@ -382,10 +359,7 @@ const SpikesMode = {
   onWallHit(nextWall) {
     PlayerState.stats.spikesHits++;
     const pts = SessionState.S_DOUBLE ? 2 : 1;
-    this.score += pts;
-    PlayerState.coins += pts;
-    EventEmitter.emit('GAME_SCORE_UPDATE', this.score);
-
+    this.score += pts; PlayerState.coins += pts;
     const sfx = CHARACTERS[PlayerState.activeSkin].sfx || 'kaching';
     playSound(sfx, 0.5);
     if (this.score % 5 === 0 && this.maxSpikes < 10) this.maxSpikes++;
@@ -404,6 +378,7 @@ const SpikesMode = {
       ctx.save(); ctx.translate(this.bird.x + BIRD_SIZE/2, this.bird.y + BIRD_SIZE/2); if (this.bird.vx < 0) ctx.scale(-1, 1);
       ctx.rotate(Math.max(-20, Math.min(20, this.bird.vy * 2)) * Math.PI / 180); ctx.drawImage(playerImg, -BIRD_SIZE/2, -BIRD_SIZE/2, BIRD_SIZE, BIRD_SIZE); ctx.restore();
     }
+    updateHUD(this.score);
 
     if (this.state === 'waiting') {
       txt(ctx, 'SPIKES MODE', GW/2 + 2, GH/4+12, '900 44px Arial', '#000');
@@ -435,11 +410,7 @@ const SpikesMode = {
     }
   },
   onAction(px, py) {
-    if (px !== undefined) if ((this.state === 'waiting' || this.state === 'gameover') && px>=LOBBY_BTN.x && px<=LOBBY_BTN.x+LOBBY_BTN.w && py>=LOBBY_BTN.y && py<=LOBBY_BTN.y+LOBBY_BTN.h) {
-      stopSpikesAudio();
-      EventEmitter.emit('UI_NAVIGATE', { screen: 'lobby' });
-      return;
-    }
+    if (px !== undefined) if ((this.state === 'waiting' || this.state === 'gameover') && px>=LOBBY_BTN.x && px<=LOBBY_BTN.x+LOBBY_BTN.w && py>=LOBBY_BTN.y && py<=LOBBY_BTN.y+LOBBY_BTN.h) { stopSpikesAudio(); showLobby(); return; }
     if (this.state === 'waiting') this.startGame(); else if (this.state === 'playing') this.bird.jump(); else if (this.state === 'gameover' && performance.now() - this.gameOverAt > 1000) this.resetState();
   }
 };
@@ -448,33 +419,40 @@ const SpikesMode = {
 const skiTrees = Array.from({length: 120}, () => ({ x: Math.random() * 4000, s: 0.4 + Math.random() * 0.8 }));
 const snowflakes = Array.from({length: 120}, () => ({ x: Math.random() * GW, y: Math.random() * GH, s: Math.random() * 2 + 1, v: Math.random() * 3 + 2 }));
 
+// Ekstremalnie długa krzywa mamuciej skoczni
 function getHillY(x) {
   if (x < 0) return 100;
-  if (x < 250) return 100 + x * 1.2;
-  if (x < 280) return 400 + (x - 250) * 0.2;
-  if (x < 300) return 406;
+  if (x < 250) return 100 + x * 1.2;               // Najazd
+  if (x < 280) return 400 + (x - 250) * 0.2;       // Wypłaszczenie
+  if (x < 300) return 406;                          // Próg
   if (x < 3500) {
+    // Zeskok mamuta - rozciągnięty do 320 metrów
     const t = (x - 300) / 3200;
     return 406 + 1850 * Math.sin(t * Math.PI / 2);
   }
-  return 2256;
+  return 2256; // Płaski odjazd na dole przepaści
 }
 
-const SkiJumpMode = {
+export const SkiJumpMode = {
   state: 'waiting', distance: 0, gameOverAt: 0, camera: { x: 0, y: 0 },
   isPressing: false, hasCrashed: false, telemark: false,
   bird: { x: 0, y: 100, vx: 0, vy: 0, angle: 45 },
   baseWind: 0, wind: 0, speedKmh: 0, judges: [], totalScore: 0,
   feedbackText: '', feedbackColor: '#fff', feedbackTimer: 0, feedbackY: 0,
-  tracksX: new Float32Array(1500), tracksY: new Float32Array(1500), trackCount: 0,
 
-  init() { this.resetState(); EventEmitter.emit('GAME_SCORE_UPDATE', this.distance); },
+  // ZERO-ALLOCATION TRACKS
+  tracksX: new Float32Array(1500),
+  tracksY: new Float32Array(1500),
+  trackCount: 0,
+
+  init() { this.resetState(); updateHUD(this.distance); },
   resetState() {
     stopWind();
     this.bird.x = -20; this.bird.y = 70; this.bird.vx = 0; this.bird.vy = 0; this.bird.angle = 50;
     this.distance = 0; this.hasCrashed = false; this.telemark = false; this.isPressing = false;
     this.feedbackText = ''; this.feedbackTimer = 0;
-    this.trackCount = 0;
+    this.trackCount = 0; // Resetujemy licznik bez niszczenia pamięci RAM
+
     this.baseWind = (Math.random() * 4) - 2.0;
     this.wind = this.baseWind;
 
@@ -497,6 +475,7 @@ const SkiJumpMode = {
   update(dt) {
     if (this.state === 'waiting' || this.state === 'gameover') return;
     const f = dt / 16.667;
+    // Prędkość wizualna mocniej podbita na mamucie
     this.speedKmh = Math.abs(this.bird.vx * 16 + this.bird.vy * 5.5);
     updateWind(this.speedKmh);
 
@@ -517,14 +496,14 @@ const SkiJumpMode = {
     });
 
     if (this.state === 'inrun') {
-      this.bird.vx += 0.15 * f;
+      this.bird.vx += 0.15 * f; // Lepsze przyspieszenie na najeździe
       this.bird.x += this.bird.vx * f;
       this.bird.y = getHillY(this.bird.x) - 15;
       this.bird.angle = 50;
 
-      if (this.bird.x > 315) {
+      if (this.bird.x > 315) { // Dałem więcej czasu na reakcję
         this.state = 'flight';
-        this.bird.vy = -1.5;
+        this.bird.vy = -1.5; // Zamiast spadać w dół, gra daje darmowe, słabe wybicie
         this.showFeedback('SPÓŹNIONY!', '#dc3232'); playSound('leci', 1.0);
       }
     }
@@ -538,10 +517,13 @@ const SkiJumpMode = {
       const angleDiff = Math.abs(this.bird.angle - 15);
       let lift = 0; let drag = 0.002;
 
+      // ŁATWIEJSZY LOT: Tolerancja kąta rozciągnięta (z 40 na 50) i mniejsza kara za złą pozycję
       if (angleDiff < 50) lift = 0.465 * (1 - (angleDiff / 50));
       else drag += (angleDiff / 100) * 0.02;
 
       const terrainY = getHillY(this.bird.x);
+
+      // ŁATWIEJSZA PODUSZKA POWIETRZNA: Działa już od 70 pikseli nad ziemią
       if (terrainY - this.bird.y < 70 && angleDiff < 30) {
          lift += 0.25;
       }
@@ -567,7 +549,7 @@ const SkiJumpMode = {
         if (this.bird.vx < 0) this.bird.vx = 0;
 
       } else {
-        this.bird.vx -= 0.18 * f;
+        this.bird.vx -= 0.18 * f; // Mocniejsze hamowanie na wybiegu
         if (this.bird.vx < 0) this.bird.vx = 0;
         this.bird.x += this.bird.vx * f; this.bird.y = getHillY(this.bird.x) - 15;
       }
@@ -576,6 +558,9 @@ const SkiJumpMode = {
         this.state = 'gameover'; this.checkRecord();
       }
     }
+    // ZMIANA KAMERY: Przesuwamy punkt skupienia.
+    // bird.y - GH * 0.25 (ptak na 1/4 wysokości od góry ekranu, widać ogromny dół!)
+    // bird.x - GW * 0.25 (ptak na 1/4 szerokości od lewej, widać daleeeko w przód)
     this.camera.x = this.bird.x - GW * 0.25;
     this.camera.y = this.bird.y - GH * 0.25;
   },
@@ -585,13 +570,14 @@ const SkiJumpMode = {
     this.distance = parseFloat(((this.bird.x - 300) / 10).toFixed(1));
     if (this.distance < 0) this.distance = 0;
 
+    // NOWY SYSTEM LĄDOWANIA (Telemark vs Dwie Nogi vs Gleba)
     let isSafe = false;
     let isTwoFeet = false;
 
     if (this.telemark && this.bird.angle > -15 && this.bird.angle < 85) {
-      isSafe = true;
+      isSafe = true; // Telemark wybacza PRAWIE WSZYSTKO
     } else if (!this.telemark && this.bird.angle > 0 && this.bird.angle < 65) {
-      isSafe = true;
+      isSafe = true; // Zapomniałeś kliknąć, ale leciałeś prosto? Lądujesz bezpiecznie!
       isTwoFeet = true;
     }
 
@@ -608,11 +594,12 @@ const SkiJumpMode = {
       this.showFeedback('TELEMARK!', '#22b422');
     }
 
+    // Inteligentni sędziowie (kary za dwie nogi)
     this.judges.forEach(j => {
       let base = 18;
-      if (this.hasCrashed) base = 6 + Math.random() * 4;
-      else if (isTwoFeet) base = 13 + Math.random() * 3;
-      else base = 17.5 + Math.random() * 2.5;
+      if (this.hasCrashed) base = 6 + Math.random() * 4;          // 6.0 - 10.0 (Upadek)
+      else if (isTwoFeet) base = 13 + Math.random() * 3;          // 13.0 - 16.0 (Kara za dwie nogi)
+      else base = 17.5 + Math.random() * 2.5;                     // 17.5 - 20.0 (Idealny Telemark)
       if (base > 20) base = 20;
       j.score = (Math.round(base * 2) / 2).toFixed(1);
     });
@@ -622,6 +609,7 @@ const SkiJumpMode = {
     this.judges[rawScores[0].idx].isMin = true; this.judges[rawScores[4].idx].isMax = true;
 
     const judgeTotal = rawScores[1].val + rawScores[2].val + rawScores[3].val;
+    // PUNKTACJA MAMUCIA: Baza 120 pkt za punkt K (200m), 1.2 pkt za metr
     const distPts = 120 + (this.distance - 200) * 1.2;
     const windPts = -this.baseWind * 8.5;
 
@@ -661,6 +649,7 @@ const SkiJumpMode = {
     ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(300, 406);
     for (let x = 300; x < this.camera.x + GW + 200; x += 50) ctx.lineTo(x, getHillY(x));
+    // Dociągnięcie białego tła mocno w dół dla mamuta
     ctx.lineTo(this.camera.x + GW + 200, 3200); ctx.lineTo(300, 3200); ctx.fill(); ctx.stroke();
 
     if (this.trackCount > 1) {
@@ -669,6 +658,7 @@ const SkiJumpMode = {
       ctx.beginPath(); for(let i=0; i<this.trackCount; i++) { if(i===0) ctx.moveTo(this.tracksX[i] - 8, this.tracksY[i] + 8); else ctx.lineTo(this.tracksX[i] - 8, this.tracksY[i] + 8); } ctx.stroke();
     }
 
+    // Nowe znaczniki odległości na mamuta (co 20m, od 100m do 320m)
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial';
     for (let d = 100; d <= 320; d += 20) {
        const mx = 300 + (d * 10); const my = getHillY(mx);
@@ -706,8 +696,7 @@ const SkiJumpMode = {
     ctx.fillStyle = windColor; ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(-15, -3); ctx.lineTo(-15, -7); ctx.lineTo(-25, 0); ctx.lineTo(-15, 7); ctx.lineTo(-15, 3); ctx.lineTo(0, 3); ctx.fill(); ctx.restore();
     txt(ctx, this.speedKmh.toFixed(1) + ' km/h', 50, 90, 'bold 16px Arial', '#fff');
 
-    // Aktualizacja HUD via Event Bus
-    EventEmitter.emit('GAME_SCORE_UPDATE', this.state === 'waiting' ? 0 : this.distance);
+    updateHUD(this.state === 'waiting' ? 0 : this.distance);
 
     if (this.state === 'waiting') {
       overlay(0.5);
@@ -757,18 +746,20 @@ const SkiJumpMode = {
   onAction(px, py) {
     if (px !== undefined && (this.state === 'waiting' || this.state === 'gameover')) {
       if (px >= 10 && px <= 120 && py >= GH - 80 && py <= GH - 16) {
-        stopWind();
-        EventEmitter.emit('UI_NAVIGATE', { screen: 'lobby' });
+        stopWind(); // <--- ZATRZYMANIE WIATRU PRZED WYJŚCIEM
+        showLobby();
         return;
       }
     }
 
     if (this.state === 'waiting') this.startGame();
     else if (this.state === 'inrun') {
+      // Można kliknąć znacznie wcześniej
       if (this.bird.x > 100 && this.bird.x < 305) {
-        const distToOptimal = Math.abs(this.bird.x - 295);
+        const distToOptimal = Math.abs(this.bird.x - 295); // Punkt G to 295
+        // Dzielnik 160 zamiast 120 -> potężna siła nawet przy słabszym timingu
         let power = 1.0 - (distToOptimal / 160);
-        if (power < 0.3) power = 0.3;
+        if (power < 0.3) power = 0.3; // Gwarancja minimalnego odbicia
 
         this.bird.vy = -3.8 - (power * 6.5);
         this.state = 'flight'; PlayerState.stats.jumps++; playSound('leci', 1.0);
@@ -780,6 +771,7 @@ const SkiJumpMode = {
     }
     else if (this.state === 'flight') {
       const terrainY = getHillY(this.bird.x);
+      // GIGANTYCZNE OKNO LĄDOWANIA (300 pikseli zamiast 200)
       if (terrainY - this.bird.y < 300) {
           this.telemark = true;
           this.showFeedback('PRZYGOTOWANY', '#93c5fd');
