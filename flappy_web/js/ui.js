@@ -326,7 +326,9 @@ function renderShop() {
   // Definicja Okna Czasowego FOMO (Piątek 20:00 - Niedziela 23:59)
   const now = new Date();
   const day = now.getDay(); // 0 = Niedziela, 5 = Piątek, 6 = Sobota
-  const isWeekend = (day === 0 || day === 6 || (day === 5 && now.getHours() >= 20));
+
+  // TWARDE WYŁĄCZENIE EVENTU FOMO NA TEN WEEKEND:
+  const isWeekend = false; // zakomentowana stara logika: (day === 0 || day === 6 || (day === 5 && now.getHours() >= 20));
 
   CHAR_KEYS.forEach(key => {
     const ch       = CHARACTERS[key];
@@ -336,6 +338,7 @@ function renderShop() {
     const ui       = shopUI[key];
 
     ui.card.className = 'char-card' + (isActive ? ' active-card' : '') + (ch.special ? ' majka-card' : '');
+    ui.card.style.display = 'block'; // Domyślnie pokazujemy każdą kartę
 
     // Logika wyłączności FOMO
     if (ch.isFomo && !owned) {
@@ -347,16 +350,11 @@ function renderShop() {
         ui.btn.innerHTML = canBuy ? `🔥 KUP \uD83C\uDFB5${ch.price}` : `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
         ui.btn.disabled = !canBuy;
       } else {
-        // Okno zamknięte: Twarda blokada
-        ui.card.style.borderColor = '#2a2a6a';
-        ui.card.style.boxShadow = 'none';
-        ui.card.style.opacity = '0.5';
-        ui.btn.className = 'cc-btn locked';
-        ui.btn.innerHTML = '🔒 WRÓĆ W WEEKEND';
-        ui.btn.disabled = true;
+        // EVENT ZAMKNIĘTY: Całkowite ukrycie karty postaci w sklepie
+        ui.card.style.display = 'none';
       }
     } else {
-      // Standardowa logika dla reszty postaci (i kupionych FOMO)
+      // Standardowa logika dla reszty postaci (oraz DLA POSIADACZY postaci FOMO)
       if (ch.isFomo) { ui.card.style.borderColor = isActive ? '#22b422' : '#ff4500'; ui.card.style.boxShadow = 'none'; ui.card.style.opacity = '1'; }
       ui.btn.className  = 'cc-btn ' + (isActive ? 'active' : owned ? 'select' : canBuy ? 'buy' : 'locked');
       ui.btn.textContent = isActive ? '✓ AKTYWNA' : owned ? 'WYBIERZ' : canBuy ? `KUP \uD83C\uDFB5${ch.price}` : `\uD83D\uDD12 ${ch.price}\uD83C\uDFB5`;
