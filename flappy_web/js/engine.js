@@ -136,11 +136,17 @@ function overlapsSpike(br, spY, side) {
 }
 
 // Bezpieczna wersja funkcji renderującej bez wycieków stanu
+let _ctxFont = '', _ctxFill = '', _ctxAlign = '';
 function txt(context, str, x, y, font, color, align = 'center') {
-  context.font = font;
-  context.fillStyle = color;
-  context.textAlign = align;
+  if (_ctxFont !== font)   { context.font = font;        _ctxFont = font;   }
+  if (_ctxFill !== color)  { context.fillStyle = color;  _ctxFill = color;  }
+  if (_ctxAlign !== align) { context.textAlign = align;  _ctxAlign = align; }
   context.fillText(str, x, y);
+}
+function drawLobbyBtn() {
+  ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
+  ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
+  txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
 }
 function overlay(a) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, GW, GH); }
 function drawBirdAt(x, y, angle) {
@@ -199,10 +205,14 @@ export const FlappyMode = {
     leaderboard = cachedLeaderboard; leaderboardLoading = false; this.renderLb();
   },
   renderLb() {
-    lbCacheCanvas.width = GW; lbCacheCanvas.height = 300; lbCtx.clearRect(0, 0, GW, 300);
+    lbCacheCanvas.width = Math.round(GW * dpr);
+    lbCacheCanvas.height = Math.round(300 * dpr);
+    lbCtx.scale(dpr, dpr);
+    lbCtx.clearRect(0, 0, GW, 300);
     leaderboard.forEach((e, i) => {
       const color = e.nick === PlayerState.nick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
-      txt(lbCtx, `${i+1}. ${e.nick}`, 22, 20 + i*22, '13px Arial', color, 'left'); txt(lbCtx, String(e.score), GW-22, 20 + i*22, '13px Arial', color, 'right');
+      txt(lbCtx, `${i+1}. ${e.nick}`, 22, 20 + i*22, '13px Arial', color, 'left');
+      txt(lbCtx, String(e.score), GW-22, 20 + i*22, '13px Arial', color, 'right');
     }); lbCacheReady = true;
   },
   update(dt) {
@@ -275,9 +285,7 @@ export const FlappyMode = {
 
       ctx.beginPath(); ctx.moveTo(20,380); ctx.lineTo(GW-20,380); ctx.stroke();
 
-      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
+      drawLobbyBtn();
 
       if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, LOBBY_BTN.y - 20, '15px Arial', '#fff');
     }
@@ -328,10 +336,14 @@ export const SpikesMode = {
     spikesLeaderboard = spikesCachedLb; spikesLbLoading = false; this.renderLb();
   },
   renderLb() {
-    spikesLbCacheCanvas.width = GW; spikesLbCacheCanvas.height = 300; spikesLbCtx.clearRect(0, 0, GW, 300);
+    spikesLbCacheCanvas.width = Math.round(GW * dpr);
+    spikesLbCacheCanvas.height = Math.round(300 * dpr);
+    spikesLbCtx.scale(dpr, dpr);
+    spikesLbCtx.clearRect(0, 0, GW, 300);
     spikesLeaderboard.forEach((e, i) => {
       const color = e.nick === PlayerState.nick ? '#ffd700' : (i < 3 ? '#fff' : '#909090');
-      txt(spikesLbCtx, `${i+1}. ${e.nick}`, 22, 20 + i*22, '13px Arial', color, 'left'); txt(spikesLbCtx, String(e.spikesBestScore || 0), GW-22, 20 + i*22, '13px Arial', color, 'right');
+      txt(spikesLbCtx, `${i+1}. ${e.nick}`, 22, 20 + i*22, '13px Arial', color, 'left');
+      txt(spikesLbCtx, String(e.spikesBestScore || 0), GW-22, 20 + i*22, '13px Arial', color, 'right');
     }); spikesLbReady = true;
   },
   generateSpikes(side) {
@@ -386,9 +398,7 @@ export const SpikesMode = {
       drawBirdAt(GW/2 - BIRD_SIZE/2, GH/2 - BIRD_SIZE/2 + Math.sin(performance.now()/333)*12, 0);
       if (((performance.now() / 600) | 0) % 2 === 0) txt(ctx, 'Tapnij aby zacząć', GW/2, GH*2/3+10, 'bold 20px Arial', '#fff');
 
-      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
+      drawLobbyBtn();
     } else if (this.state === 'gameover') {
       overlay(0.75);
       txt(ctx, 'ZGINĄŁEŚ', GW/2 + 2, 62, '900 44px Arial', '#000');
@@ -403,9 +413,7 @@ export const SpikesMode = {
       if (spikesLbLoading) txt(ctx, 'Ładowanie...', GW/2, 175, '13px Arial', '#888');
       else if (spikesLbReady) ctx.drawImage(spikesLbCacheCanvas, 0, 150, GW, 300);
 
-      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y + 5, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(LOBBY_BTN.x, LOBBY_BTN.y, LOBBY_BTN.w, LOBBY_BTN.h, 12); ctx.fill();
-      txt(ctx, '🏠 LOBBY', LOBBY_BTN.x + LOBBY_BTN.w/2, LOBBY_BTN.y + LOBBY_BTN.h/2 + 7, 'bold 16px Arial', '#fff');
+      drawLobbyBtn();
       if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij, aby zagrać ponownie', GW/2, LOBBY_BTN.y - 20, '15px Arial', '#fff');
     }
   },
@@ -736,9 +744,7 @@ export const SkiJumpMode = {
       txt(ctx, `NOTA ŁĄCZNA: ${this.totalScore} pkt`, GW/2, GH/2 + 80, 'bold 22px Arial', '#ffd700');
       txt(ctx, `Rekord życiowy: ${PlayerState.skiBestScore} pkt`, GW/2, GH/2 + 105, '14px Arial', '#aaa');
 
-      ctx.fillStyle = '#0a0a22'; ctx.beginPath(); ctx.roundRect(10, GH - 80 + 5, 110, 64, 12); ctx.fill();
-      ctx.fillStyle = '#dc3232'; ctx.beginPath(); ctx.roundRect(10, GH - 80, 110, 64, 12); ctx.fill();
-      txt(ctx, '🏠 LOBBY', 10 + 55, GH - 80 + 39, 'bold 16px Arial', '#fff');
+      drawLobbyBtn();
       if (performance.now() - this.gameOverAt > 1000) txt(ctx, 'Tapnij by skoczyć ponownie', GW/2, GH - 40, '15px Arial', '#fff');
     }
   },
