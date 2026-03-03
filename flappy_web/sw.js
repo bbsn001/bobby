@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bobby-bird-v21'; // Podbita wersja po zmianach wypchnij na git bez server.js
+const CACHE_NAME = 'bobby-bird-v24'; // Podbicie po demontażu paywalla
 
 const ASSETS_TO_CACHE = [
   './',

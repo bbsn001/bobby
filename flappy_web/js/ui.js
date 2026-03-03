@@ -149,33 +149,14 @@ function updateLobbyUI() {
   renderCharPicker();
 
   const spikesBtn = document.getElementById('lobbySpikes');
-  const unlockedChars = PlayerState.unlockedSkins.filter(k => CHAR_KEYS.includes(k)).length;
-  const hasSpikes = PlayerState.unlockedSkins.includes('spikes');
 
-  // Czyścimy ew. pozostałości po starym stylu inline
+  // TWARDE ODBLOKOWANIE KOLCÓW DLA WSZYSTKICH
   spikesBtn.style = '';
-
-  if (hasSpikes) {
-    spikesBtn.className = 'mode-card red';
-    spikesBtn.innerHTML = `
-      <div class="mode-icon">🔥</div>
-      <div class="mode-title">KOLCE</div>
-    `;
-  } else if (unlockedChars >= 5) {
-    spikesBtn.className = 'mode-card yellow';
-    spikesBtn.innerHTML = `
-      <div class="mode-icon">🔓</div>
-      <div class="mode-title">KUP KOLCE</div>
-      <div class="mode-price">🎵 ${GAME_CONFIG.SPIKES_MODE_PRICE}</div>
-    `;
-  } else {
-    spikesBtn.className = 'mode-card dark disabled';
-    spikesBtn.innerHTML = `
-      <div class="mode-icon">🔒</div>
-      <div class="mode-title">KOLCE</div>
-      <div class="mode-price">${unlockedChars}/5 postaci</div>
-    `;
-  }
+  spikesBtn.className = 'mode-card red';
+  spikesBtn.innerHTML = `
+    <div class="mode-icon">🔥</div>
+    <div class="mode-title">KOLCE</div>
+  `;
 }
 
 let charPickerInitialized = false;
@@ -255,12 +236,14 @@ async function onLobbyPlay() {
 
 async function onLobbySpikes() {
   if (lobbyPlayGuard) return;
-  // USUNIĘTO: Sprawdzanie i pobieranie opłaty (PlayerState.coins -= ...)
+
+  // Bezpośredni wjazd na Kolce (Paywall usunięty)
   lobbyPlayGuard = true;
   computeSessionParams();
   await applyActiveSkin(PlayerState.activeSkin);
   SceneManager.changeScene(SpikesMode);
   showGame();
+
   setTimeout(() => { lobbyPlayGuard = false; }, 500);
 }
 
