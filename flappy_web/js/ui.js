@@ -255,23 +255,7 @@ async function onLobbyPlay() {
 
 async function onLobbySpikes() {
   if (lobbyPlayGuard) return;
-  const hasSpikes = PlayerState.unlockedSkins.includes('spikes');
-  const unlockedChars = PlayerState.unlockedSkins.filter(k => CHAR_KEYS.includes(k)).length;
-
-  if (!hasSpikes) {
-    if (unlockedChars < 5) return;
-    if (PlayerState.coins < GAME_CONFIG.SPIKES_MODE_PRICE) {
-      document.getElementById('lobbySpikes').style.background = '#dc3232';
-      setTimeout(() => updateLobbyUI(), 300);
-      return;
-    }
-    PlayerState.coins -= GAME_CONFIG.SPIKES_MODE_PRICE;
-    PlayerState.unlockedSkins.push('spikes');
-    await saveProgress(true);
-    updateLobbyUI();
-    return;
-  }
-
+  // USUNIĘTO: Sprawdzanie i pobieranie opłaty (PlayerState.coins -= ...)
   lobbyPlayGuard = true;
   computeSessionParams();
   await applyActiveSkin(PlayerState.activeSkin);

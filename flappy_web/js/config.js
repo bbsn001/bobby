@@ -10,8 +10,9 @@ export const GAME_CONFIG = {
   PIPE_INTERVAL: 1750,
   BIRD_SIZE: 60,
   COL_W: 70,
-  SPIKES_MODE_PRICE: 1000,
-  SKI_MODE_PRICE: 100
+  // ZMIANA: Znosimy opłaty wpisowe
+  SPIKES_MODE_PRICE: 0,
+  SKI_MODE_PRICE: 0
 };
 
 export const CHARACTERS = {
